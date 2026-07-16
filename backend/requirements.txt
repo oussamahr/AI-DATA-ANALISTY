@@ -1,13 +1,11 @@
 # FastAPI core
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
-pydantic==2.9.0
-pydantic-settings==2.5.0
 python-dotenv==1.2.2
 
 # Database
 sqlalchemy[asyncio]==2.0.35
-asyncpg==0.29.0
+asyncpg==0.31.0
 alembic==1.13.0
 
 # Auth
@@ -24,9 +22,9 @@ httpx==0.27.0
 # File processing
 aiofiles==24.1.0
 openpyxl==3.1.5
-pandas==2.2.2
-pyarrow==17.0.0
-numpy==1.26.4
+pandas==3.0.3
+pyarrow==25.0.0
+numpy==2.5.1
 xlrd==2.0.1
 
 # Rate limiting
@@ -36,7 +34,7 @@ slowapi==0.1.9
 redis==5.0.1
 
 # Server-side chart rendering
-matplotlib==3.9.2
+matplotlib==3.11.0
 
 # Async task queue
 celery==5.4.0
@@ -51,9 +49,12 @@ celery==5.4.0
 python-json-logger==2.0.7
 
 # Validation / utilities
-email-validator==2.2.0
+pydantic==2.13.4
+pydantic-settings==2.14.2
+email-validator==2.3.0
 
 # Testing
 pytest==8.3.0
 pytest-asyncio==0.24.0
 aiosqlite==0.20.0
+

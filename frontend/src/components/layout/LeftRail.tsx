@@ -18,8 +18,8 @@ export function LeftRail() {
   };
 
   return (
-    <aside className="hidden lg:flex flex-col gap-2.5 pt-1.5">
-      <span className="font-mono text-[11px] tracking-widest text-ink-faint uppercase mb-1.5">
+    <aside className="hidden lg:flex flex-col gap-2 pt-2" aria-label="Recent queries">
+      <span className="section-heading mb-2">
         Recent
       </span>
       {recentQueries.map((item, i) => (
@@ -28,8 +28,7 @@ export function LeftRail() {
           to="/llm"
           className="rail-item"
           style={{
-            opacity: 1 - i * 0.15,
-            transform: `translateX(${i * 2}px) scale(${1 - i * 0.015})`,
+            opacity: 1 - i * 0.12,
           }}
         >
           <span className="t">{item.query}</span>
@@ -41,7 +40,7 @@ export function LeftRail() {
       {user?.role === "admin" && (
         <Link
           to="/admin"
-          className="rail-item mt-3"
+          className="rail-item mt-4"
           data-active={isActive("/admin")}
         >
           <span className="t">Admin Panel</span>

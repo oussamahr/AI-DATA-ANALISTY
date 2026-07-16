@@ -88,14 +88,23 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_session),
 ) -> User:
+    # Try Bearer token from Authorization header first
     if credentials is not None:
         user = await _resolve_bearer_user(credentials.credentials, db)
         if user is not None and user.is_active:
             return user
 
+    # Try session cookie if enabled
     user = await _resolve_session_user(request, db)
     if user is not None:
         return user
+    
+    # Try access token from httpOnly cookie
+    access_token = request.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
+    if access_token:
+        user = await _resolve_bearer_user(access_token, db)
+        if user is not None and user.is_active:
+            return user
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -108,11 +117,25 @@ async def get_optional_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_session),
 ) -> User | None:
+    # Try Bearer token from Authorization header
     if credentials is not None:
         user = await _resolve_bearer_user(credentials.credentials, db)
         if user is not None and user.is_active:
             return user
-    return await _resolve_session_user(request, db)
+    
+    # Try session cookie if enabled
+    user = await _resolve_session_user(request, db)
+    if user is not None:
+        return user
+    
+    # Try access token from httpOnly cookie
+    access_token = request.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
+    if access_token:
+        user = await _resolve_bearer_user(access_token, db)
+        if user is not None and user.is_active:
+            return user
+    
+    return None
 
 
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:

@@ -32,14 +32,14 @@ interface ChartResponse {
 }
 
 const chartTypes = [
-  { type: "preview", label: "Auto Preview", icon: PieChart, description: "AI-detects the best chart type for your data" },
+  { type: "preview", label: "Auto Preview", icon: PieChart, description: "AI-detects the best chart type" },
   { type: "bar", label: "Bar Chart", icon: BarChart3, description: "Compare categories and values" },
-  { type: "histogram", label: "Histogram", icon: Activity, description: "Show distribution of a single variable" },
-  { type: "scatter", label: "Scatter Plot", icon: TrendingUp, description: "Reveal correlations between two variables" },
-  { type: "line", label: "Line Chart", icon: Minus, description: "Track trends over time or sequence" },
-  { type: "pie", label: "Pie Chart", icon: PieChart, description: "Show proportions of a whole" },
+  { type: "histogram", label: "Histogram", icon: Activity, description: "Show distribution of a variable" },
+  { type: "scatter", label: "Scatter Plot", icon: TrendingUp, description: "Reveal correlations" },
+  { type: "line", label: "Line Chart", icon: Minus, description: "Track trends over time" },
+  { type: "pie", label: "Pie Chart", icon: PieChart, description: "Show proportions" },
   { type: "heatmap", label: "Heatmap", icon: Grid3X3, description: "Visualize correlation matrices" },
-  { type: "box", label: "Box Plot", icon: Box, description: "Display spread, median, and outliers" },
+  { type: "box", label: "Box Plot", icon: Box, description: "Display spread and outliers" },
 ];
 
 export function VisualizationsPage() {
@@ -78,32 +78,28 @@ export function VisualizationsPage() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-blur-in">
+    <div className="space-y-6 animate-fade-blur-in">
       <div>
-        <h1 className="font-display text-[32px] leading-tight font-bold text-ink">
-          Visualizations
-        </h1>
-        <p className="text-sm text-ink-dim mt-1.5">
+        <h1 className="page-heading">Visualizations</h1>
+        <p className="page-subheading mt-1">
           Generate charts and visualizations from your datasets
         </p>
       </div>
 
       <GlassCard elevation="strong">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-teal-glow border border-teal/20 flex items-center justify-center">
-            <BarChart3 className="h-5 w-5 text-teal" />
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-teal-glow border border-teal/20 flex items-center justify-center">
+            <BarChart3 className="h-4 w-4 text-teal" />
           </div>
-          <h2 className="text-sm font-semibold text-ink-dim uppercase tracking-wider">
-            Generate Chart
-          </h2>
+          <p className="section-heading">Generate Chart</p>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <Select
             value={selectedDatasetId}
             onValueChange={setSelectedDatasetId}
           >
-            <SelectTrigger className="h-11 rounded-full bg-glass-bg border-glass-border text-ink focus:border-teal focus:ring-1 focus:ring-teal">
+            <SelectTrigger className="h-10 rounded-[var(--radius-sm)] bg-glass-bg border-glass-border text-ink text-[13px] focus:border-teal focus:ring-1 focus:ring-teal">
               <SelectValue placeholder="Select a dataset..." />
             </SelectTrigger>
             <SelectContent className="glass-strong border-glass-border text-ink">
@@ -115,28 +111,28 @@ export function VisualizationsPage() {
             </SelectContent>
           </Select>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             {chartTypes.map(({ type, label, icon: Icon, description }) => (
               <button
                 key={type}
                 onClick={() => generateChart(type)}
                 disabled={!selectedDatasetId || isLoading}
-                className={`group flex flex-col items-start gap-3 p-4 rounded-[var(--radius-md)] border text-left transition-all duration-200 ease-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none ${
+                className={`group flex flex-col items-start gap-2.5 p-3.5 rounded-[var(--radius-md)] border text-left transition-all duration-200 ease-out hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none ${
                   chartType === type
                     ? "bg-teal-glow border-teal/30 text-ink"
                     : "bg-glass-bg border-glass-border text-ink-dim hover:border-glass-border-strong hover:bg-glass-bg-strong"
                 }`}
               >
-                <div className={`w-9 h-9 rounded-[var(--radius-sm)] flex items-center justify-center ${
+                <div className={`w-7 h-7 rounded-[var(--radius-sm)] flex items-center justify-center ${
                   chartType === type
                     ? "bg-teal/20 border border-teal/30"
                     : "bg-glass-bg-strong border border-glass-border group-hover:border-glass-border-strong"
                 }`}>
-                  <Icon className={`h-4 w-4 ${chartType === type ? "text-teal" : "text-ink-faint group-hover:text-ink-dim"}`} />
+                  <Icon className={`h-3.5 w-3.5 ${chartType === type ? "text-teal" : "text-ink-faint group-hover:text-ink-dim"}`} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-ink">{label}</p>
-                  <p className="text-xs text-ink-faint mt-0.5">{description}</p>
+                  <p className="text-[13px] font-medium text-ink">{label}</p>
+                  <p className="text-[11px] text-ink-faint mt-0.5">{description}</p>
                 </div>
               </button>
             ))}
@@ -145,51 +141,51 @@ export function VisualizationsPage() {
       </GlassCard>
 
       {isLoading && (
-        <GlassCard elevation="default" className="text-center py-12">
-          <div className="h-8 w-8 border-2 border-glass-border-strong border-t-teal rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm text-ink-dim">Generating chart...</p>
+        <GlassCard elevation="default" className="text-center py-10">
+          <div className="h-6 w-6 border-2 border-glass-border-strong border-t-teal rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-[13px] text-ink-dim">Generating chart...</p>
         </GlassCard>
       )}
 
       {chartData && !isLoading && (
         <GlassCard elevation="default">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-display text-base font-bold text-ink">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold text-ink">
               {chartData.title}
             </h3>
             <Badge
               variant="secondary"
-              className="bg-glass-bg-strong text-ink-dim border border-glass-border font-mono text-[10px] uppercase"
+              className="font-mono text-[10px] uppercase"
             >
               {chartData.chart_type}
             </Badge>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             {chartData.data.labels?.map((label, i) => (
               <div
                 key={label}
-                className="flex items-center justify-between p-3 rounded-[var(--radius-sm)] bg-glass-bg border border-glass-border"
+                className="flex items-center justify-between p-2.5 rounded-[var(--radius-sm)] bg-glass-bg border border-glass-border"
               >
-                <span className="text-sm text-ink-dim">{label}</span>
-                <span className="text-sm font-mono font-medium text-ink">
+                <span className="text-[13px] text-ink-dim">{label}</span>
+                <span className="text-[13px] font-mono font-medium text-ink">
                   {chartData.data.datasets[0]?.data[i]?.toLocaleString()}
                 </span>
               </div>
             ))}
           </div>
-          <p className="text-xs text-ink-faint mt-5 font-mono">
+          <p className="text-[11px] text-ink-faint mt-4 font-mono">
             Data rendered as table. Chart rendering integration pending.
           </p>
         </GlassCard>
       )}
 
       {!chartData && !isLoading && (
-        <GlassCard elevation="default" className="text-center py-16">
-          <BarChart3 className="h-14 w-14 mx-auto mb-4 text-ink-faint opacity-25" />
-          <h3 className="font-display text-lg font-bold text-ink mb-2">
+        <GlassCard elevation="default" className="text-center py-14">
+          <BarChart3 className="h-10 w-10 mx-auto mb-3 text-ink-faint opacity-20" />
+          <h3 className="text-[15px] font-semibold text-ink mb-1">
             No chart generated
           </h3>
-          <p className="text-sm text-ink-dim">
+          <p className="text-[13px] text-ink-dim">
             Select a dataset and chart type above to generate a visualization.
           </p>
         </GlassCard>

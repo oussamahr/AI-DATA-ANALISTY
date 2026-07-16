@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 import { AmbientBackground } from "@/components/common/AmbientBackground";
@@ -28,12 +28,17 @@ function App() {
               <AppShell>
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />
+                  <Route path="/dashboard" element={<Navigate to="/" replace />} />
                   <Route path="/datasets" element={<DatasetsPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/analysis" element={<Navigate to="/analytics" replace />} />
+                  <Route path="/analyst" element={<Navigate to="/analytics" replace />} />
+                  <Route path="/reports" element={<Navigate to="/analytics" replace />} />
                   <Route path="/visualizations" element={<VisualizationsPage />} />
                   <Route path="/transforms" element={<TransformsPage />} />
                   <Route path="/llm" element={<LLMPage />} />
                   <Route path="/admin" element={<AdminPage />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </AppShell>
             </ProtectedRoute>

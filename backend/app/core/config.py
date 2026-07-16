@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     SESSION_COOKIE_ENABLED: bool = False
     SESSION_COOKIE_NAME: str = "ai_data_session"
     CSRF_COOKIE_NAME: str = "ai_data_csrf"
+    ACCESS_TOKEN_COOKIE_NAME: str = "access_token"
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
     SESSION_IDLE_TIMEOUT_MINUTES: int = 30
     SESSION_ABSOLUTE_TIMEOUT_HOURS: int = 8
 

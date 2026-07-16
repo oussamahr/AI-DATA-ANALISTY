@@ -59,6 +59,27 @@ async def login(
     await rate_limit_dependency("5/minute", "auth_login", request)
     access_token, refresh_token, user = await auth_service.login(data.email, data.password)
     csrf_token: str | None = None
+    
+    # Set httpOnly cookies for tokens (secure, cannot be read by JavaScript)
+    response.set_cookie(
+        key=settings.ACCESS_TOKEN_COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=not settings.is_development(),
+        samesite="strict",
+        path="/",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    response.set_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=not settings.is_development(),
+        samesite="strict",
+        path="/",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+    )
+    
     if settings.SESSION_COOKIE_ENABLED:
         session = await get_session_store().create_session(str(user.id))
         response.set_cookie(
@@ -71,19 +92,49 @@ async def login(
         )
         set_csrf_cookie_headers(response, session.csrf_token)
         csrf_token = session.csrf_token
+    
     await audit_logger.login(str(user.id), success=True, request=request)
+    # Return empty TokenResponse (tokens are now in httpOnly cookies)
     return TokenResponse(
-        access_token=access_token, refresh_token=refresh_token, csrf_token=csrf_token
+        access_token="", refresh_token="", csrf_token=csrf_token
     )
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
-    data: TokenRefresh,
+    request: Request,
+    response: Response,
     auth_service: AuthService = Depends(),
 ):
-    access_token, refresh_token = await auth_service.refresh_token(data.refresh_token)
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    # Read refresh_token from httpOnly cookie (set by previous login/refresh)
+    refresh_token = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if not refresh_token:
+        raise ValueError("Refresh token not found in cookies")
+    
+    access_token, new_refresh_token = await auth_service.refresh_token(refresh_token)
+    
+    # Set new httpOnly cookies for refreshed tokens
+    response.set_cookie(
+        key=settings.ACCESS_TOKEN_COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=not settings.is_development(),
+        samesite="strict",
+        path="/",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    response.set_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        value=new_refresh_token,
+        httponly=True,
+        secure=not settings.is_development(),
+        samesite="strict",
+        path="/",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+    )
+    
+    # Return empty TokenResponse (tokens are now in httpOnly cookies)
+    return TokenResponse(access_token="", refresh_token="")
 
 
 @router.post("/logout")
@@ -92,12 +143,17 @@ async def logout(
     response: Response,
     current_user: User = Depends(get_current_user),
 ):
+    # Clear token cookies
+    response.delete_cookie(settings.ACCESS_TOKEN_COOKIE_NAME, path="/")
+    response.delete_cookie(settings.REFRESH_TOKEN_COOKIE_NAME, path="/")
+    
     if settings.SESSION_COOKIE_ENABLED and request is not None and response is not None:
         session_id = request.cookies.get(settings.SESSION_COOKIE_NAME)
         if session_id:
             await get_session_store().revoke_session(session_id)
         response.delete_cookie(settings.SESSION_COOKIE_NAME, path="/")
         response.delete_cookie(settings.CSRF_COOKIE_NAME, path="/")
+    
     await audit_logger.logout(str(current_user.id), request=request)
     return {"message": "Logged out successfully"}
 

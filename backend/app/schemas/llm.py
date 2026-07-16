@@ -21,7 +21,8 @@ class LLMQueryResponse(BaseModel):
 
 class LLMQueryHistoryItem(BaseModel):
     id: UUID
-    prompt_redacted: str
+    prompt: str
+    response: str | None = None
     model: str
     success: bool
     created_at: datetime

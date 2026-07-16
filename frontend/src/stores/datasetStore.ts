@@ -25,7 +25,9 @@ export const useDatasetStore = create<DatasetState>((set) => ({
     set({ isLoading: true });
     try {
       const res = await api.get<{ items: Dataset[] }>("/datasets/");
-      set({ datasets: res.data.items });
+      set({ datasets: Array.isArray(res.data.items) ? res.data.items : [] });
+    } catch {
+      set({ datasets: [] });
     } finally {
       set({ isLoading: false });
     }

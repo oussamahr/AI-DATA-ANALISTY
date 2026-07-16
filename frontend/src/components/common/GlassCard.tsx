@@ -21,11 +21,11 @@ export function GlassCard({
   return (
     <div
       className={cn(
-        "rounded-[var(--radius-md)] p-5",
+        "rounded-[var(--radius-lg)] p-6",
         elevationClasses[elevation],
-        "transition-all duration-200 ease-out",
-        "hover:border-glass-border-strong hover:-translate-y-[2px]",
-        "active:translate-y-0 active:scale-[0.98]",
+        "transition-all duration-300 ease-out",
+        "hover:border-glass-border-strong hover:-translate-y-[1px]",
+        "active:translate-y-0 active:scale-[0.99]",
         animate && "animate-fade-blur-in",
         className
       )}

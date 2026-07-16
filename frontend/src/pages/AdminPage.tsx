@@ -59,34 +59,34 @@ export function AdminPage() {
     : {};
 
   return (
-    <div className="space-y-8 animate-fade-blur-in">
+    <div className="space-y-6 animate-fade-blur-in">
       <div>
-        <h1 className="font-display text-[32px] leading-tight font-bold text-ink flex items-center gap-3">
-          <Shield className="h-7 w-7 text-teal" />
+        <h1 className="page-heading flex items-center gap-3">
+          <Shield className="h-5 w-5 text-teal" />
           Admin Panel
         </h1>
-        <p className="text-sm text-ink-dim mt-1.5">
+        <p className="page-subheading mt-1">
           Platform administration and user management
         </p>
       </div>
 
       {stats && (
-        <div className="grid gap-5 grid-cols-2 lg:grid-cols-4 stagger-children">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 stagger-children">
           {statConfig.map(({ key, label, icon: Icon, color }) => {
             const c = colorMap[color];
             return (
               <GlassCard key={key} elevation="default" animate={false}>
-                <div className="flex items-start justify-between mb-5">
-                  <span className="text-xs font-semibold text-ink-dim uppercase tracking-wider">
+                <div className="flex items-start justify-between mb-4">
+                  <span className="text-[11px] font-semibold text-ink-dim uppercase tracking-wider">
                     {label}
                   </span>
                   <div
-                    className={`w-10 h-10 rounded-[var(--radius-sm)] ${c.bg} border ${c.border} flex items-center justify-center`}
+                    className={`w-8 h-8 rounded-[var(--radius-sm)] ${c.bg} border ${c.border} flex items-center justify-center`}
                   >
-                    <Icon className={`h-5 w-5 ${c.text}`} />
+                    <Icon className={`h-4 w-4 ${c.text}`} />
                   </div>
                 </div>
-                <div className="font-mono text-[36px] font-bold text-ink leading-none tracking-tight">
+                <div className="font-mono text-[28px] font-bold text-ink leading-none tracking-tight">
                   {statValues[key]}
                 </div>
               </GlassCard>
@@ -96,15 +96,13 @@ export function AdminPage() {
       )}
 
       <GlassCard elevation="default">
-        <h2 className="text-sm font-semibold text-ink-dim uppercase tracking-wider mb-5">
-          Users
-        </h2>
+        <p className="section-heading mb-4">Users</p>
         {isLoading ? (
           <div className="text-center py-10">
             <div className="h-6 w-6 border-2 border-glass-border-strong border-t-teal rounded-full animate-spin mx-auto" />
           </div>
         ) : users.length === 0 ? (
-          <p className="text-sm text-ink-dim text-center py-10">
+          <p className="text-[13px] text-ink-dim text-center py-10">
             No users found.
           </p>
         ) : (
@@ -112,16 +110,16 @@ export function AdminPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-glass-border hover:bg-transparent">
-                  <TableHead className="text-ink-faint font-mono text-xs uppercase">
+                  <TableHead className="text-ink-faint font-mono text-[10px] uppercase">
                     Email
                   </TableHead>
-                  <TableHead className="text-ink-faint font-mono text-xs uppercase">
+                  <TableHead className="text-ink-faint font-mono text-[10px] uppercase">
                     Name
                   </TableHead>
-                  <TableHead className="text-ink-faint font-mono text-xs uppercase">
+                  <TableHead className="text-ink-faint font-mono text-[10px] uppercase">
                     Status
                   </TableHead>
-                  <TableHead className="text-ink-faint font-mono text-xs uppercase">
+                  <TableHead className="text-ink-faint font-mono text-[10px] uppercase">
                     Verified
                   </TableHead>
                 </TableRow>
@@ -132,32 +130,24 @@ export function AdminPage() {
                     key={user.id}
                     className="border-glass-border hover:bg-glass-bg-strong"
                   >
-                    <TableCell className="font-medium text-ink font-mono text-sm">
+                    <TableCell className="font-medium text-ink font-mono text-[13px]">
                       {user.email}
                     </TableCell>
-                    <TableCell className="text-ink-dim">
+                    <TableCell className="text-ink-dim text-[13px]">
                       {user.first_name} {user.last_name}
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant="secondary"
-                        className={`font-mono text-[10px] uppercase border ${
-                          user.is_active
-                            ? "bg-surface-success text-green-400 border-surface-success-border"
-                            : "bg-surface-error text-red-400 border-surface-error-border"
-                        }`}
+                        variant={user.is_active ? "success" : "destructive"}
+                        className="font-mono text-[10px] uppercase"
                       >
                         {user.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant="secondary"
-                        className={`font-mono text-[10px] uppercase border ${
-                          user.is_verified
-                            ? "bg-surface-success text-green-400 border-surface-success-border"
-                            : "bg-glass-bg-strong text-ink-dim border-glass-border"
-                        }`}
+                        variant={user.is_verified ? "success" : "secondary"}
+                        className="font-mono text-[10px] uppercase"
                       >
                         {user.is_verified ? "Yes" : "No"}
                       </Badge>

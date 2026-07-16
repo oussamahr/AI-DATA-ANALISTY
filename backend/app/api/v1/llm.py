@@ -48,7 +48,8 @@ async def query_history(
     return [
         LLMQueryHistoryItem(
             id=r.id,
-            prompt_redacted=r.prompt[:200],
+            prompt=r.prompt,
+            response=r.response,
             model=r.model,
             success=r.success,
             created_at=r.created_at,

@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import api from "@/lib/api";
 import { useDatasetStore } from "@/stores/datasetStore";
+import { useErrorHandler } from "@/hooks/useErrorHandler";
 import type { LLMQuery } from "@/types/api";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SpecularButton } from "@/components/effects/SpecularButton";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Send, Clock, CheckCircle, XCircle, Sparkles } from "lucide-react";
+import { Send, Clock, CheckCircle, XCircle, Sparkles, AlertCircle } from "lucide-react";
 
 type ConsoleState = "idle" | "thinking" | "answer";
 
@@ -21,8 +22,16 @@ export function LLMPage() {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
   const [consoleState, setConsoleState] = useState<ConsoleState>("idle");
   const [history, setHistory] = useState<LLMQuery[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [errorRequestId, setErrorRequestId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { datasets, fetchDatasets } = useDatasetStore();
+  const { handleError } = useErrorHandler();
+
+  const prefersReducedMotion = useMemo(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    []
+  );
 
   useEffect(() => {
     fetchDatasets();
@@ -31,14 +40,22 @@ export function LLMPage() {
 
   const fetchHistory = async () => {
     try {
-      const res = await api.get<{ items: LLMQuery[] }>("/llm/history");
-      setHistory(res.data.items);
-    } catch {}
+      const res = await api.get<LLMQuery[] | { items: LLMQuery[] }>("/llm/history");
+      setHistory(Array.isArray(res.data) ? res.data : res.data.items ?? []);
+      setError(null);
+    } catch (err) {
+      const apiError = handleError(err);
+      setError(apiError.userMessage);
+      setErrorRequestId(apiError.requestId || null);
+      setHistory([]);
+    }
   };
 
   const handleQuery = async () => {
     if (!prompt.trim()) return;
     setConsoleState("thinking");
+    setError(null);
+    setErrorRequestId(null);
     try {
       await api.post("/llm/query", {
         prompt: prompt.trim(),
@@ -48,55 +65,82 @@ export function LLMPage() {
       await fetchHistory();
       setConsoleState("answer");
       setTimeout(() => setConsoleState("idle"), 2000);
-    } catch {
+    } catch (err) {
+      const apiError = handleError(err);
+      setError(apiError.userMessage);
+      setErrorRequestId(apiError.requestId || null);
       setConsoleState("idle");
     }
   };
 
   return (
-    <div className="space-y-8 animate-fade-blur-in">
+    <div className="space-y-6 animate-fade-blur-in">
       <div>
-        <h1 className="font-display text-[32px] leading-tight font-bold text-ink">
-          AI Query
-        </h1>
-        <p className="text-sm text-ink-dim mt-1.5">
+        <h1 className="page-heading">AI Query</h1>
+        <p className="page-subheading mt-1">
           Ask questions about your data using natural language
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-[var(--radius-md)] p-4 border border-surface-error-border bg-surface-error" role="alert">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[13px] text-red-300 font-medium">{error}</p>
+              {errorRequestId && (
+                <p className="text-[11px] text-red-200/60 mt-1 font-mono">
+                  Request ID: {errorRequestId}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setError(null);
+                setErrorRequestId(null);
+              }}
+              className="text-red-300 hover:text-red-200 transition-colors p-1"
+              aria-label="Dismiss error"
+            >
+              <AlertCircle className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         className="console-frame relative rounded-[calc(var(--radius-lg)+4px)]"
         data-state={consoleState}
       >
         <div className="console-border" />
-        <div className="console relative z-1 glass-strong p-8">
+        <div className="console relative z-1 glass-strong p-6">
           <div className="shimmer-overlay" data-active={consoleState === "thinking"} />
 
-          <div className="relative z-10 space-y-5">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-teal-glow border border-teal/20 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-teal" />
+          <div className="relative z-10 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-teal-glow border border-teal/20 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-teal" />
               </div>
-              <h2 className="text-sm font-semibold text-ink-dim uppercase tracking-wider">
+              <h2 className="section-heading">
                 New Query
               </h2>
               {consoleState === "thinking" && (
-                <span className="ml-auto flex items-center gap-1.5 text-sm text-teal font-mono">
-                  <span className="h-2 w-2 rounded-full bg-teal animate-glow-pulse" />
+                <span className="ml-auto flex items-center gap-1.5 text-[13px] text-teal font-mono">
+                  <span className="h-1.5 w-1.5 rounded-full bg-teal animate-glow-pulse" />
                   Thinking...
                 </span>
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm text-ink-dim font-mono">
+            <div className="space-y-1.5">
+              <Label className="text-[12px] text-ink-dim font-mono">
                 Dataset (optional)
               </Label>
               <Select
                 value={selectedDatasetId}
                 onValueChange={setSelectedDatasetId}
               >
-                <SelectTrigger className="h-11 rounded-full bg-glass-bg border-glass-border text-ink text-sm focus:border-teal focus:ring-1 focus:ring-teal">
+                <SelectTrigger className="h-10 rounded-[var(--radius-sm)] bg-glass-bg border-glass-border text-ink text-[13px] focus:border-teal focus:ring-1 focus:ring-teal">
                   <SelectValue placeholder="Select a dataset to query..." />
                 </SelectTrigger>
                 <SelectContent className="glass-strong border-glass-border text-ink">
@@ -123,57 +167,57 @@ export function LLMPage() {
                 }}
                 disabled={consoleState === "thinking"}
                 rows={2}
-                className="flex-1 rounded-[var(--radius-md)] border border-glass-border bg-glass-bg text-ink placeholder:text-ink-faint p-4 text-sm resize-none focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal font-body"
+                className="flex-1 rounded-[var(--radius-md)] border border-glass-border bg-glass-bg text-ink placeholder:text-ink-faint p-3 text-[13px] resize-none focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal font-body"
                 aria-label="Ask a question about your data"
               />
-              <Button
+              <SpecularButton
                 onClick={handleQuery}
                 disabled={!prompt.trim() || consoleState === "thinking"}
-                className="self-end gap-2.5 rounded-full h-11 bg-teal hover:bg-teal/90 text-void font-medium transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_26px_rgba(45,212,191,0.5)]"
+                size="lg"
+                radius={12}
+                followMouse={!prefersReducedMotion}
+                autoAnimate={false}
+                className="self-end"
               >
                 <Send className="h-4 w-4" />
                 {consoleState === "thinking" ? "..." : "Ask"}
-              </Button>
+              </SpecularButton>
             </div>
           </div>
         </div>
       </div>
 
-      <div>
-        <h2 className="text-sm font-semibold text-ink-dim uppercase tracking-wider mb-5">
+      <section>
+        <p className="section-heading mb-4">
           Query History
-        </h2>
-        {history.length === 0 ? (
-          <div className="text-center py-16 text-ink-dim">
-            <Sparkles className="h-14 w-14 mx-auto mb-4 text-ink-faint opacity-25" />
-            <p className="text-sm">
+        </p>
+        {history?.length === 0 ? (
+          <div className="text-center py-14 text-ink-dim">
+            <Sparkles className="h-10 w-10 mx-auto mb-3 text-ink-faint opacity-20" />
+            <p className="text-[13px]">
               No queries yet. Ask a question above to get started.
             </p>
           </div>
         ) : (
-          <div className="space-y-4 stagger-children">
+          <div className="space-y-3 stagger-children">
             {history.map((q) => (
               <div
                 key={q.id}
-                className="glass rounded-[var(--radius-md)] p-5 hover:border-glass-border-strong transition-all"
+                className="glass rounded-[var(--radius-md)] p-4 hover:border-glass-border-strong transition-all"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-ink mb-2">
+                    <p className="text-[13px] font-medium text-ink mb-1.5">
                       {q.prompt}
                     </p>
-                    <p className="text-sm text-ink-dim whitespace-pre-wrap leading-relaxed">
-                      {q.response}
+                    <p className="text-[13px] text-ink-dim whitespace-pre-wrap leading-relaxed">
+                      {q.response || "(No response)"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <Badge
-                      variant="secondary"
-                      className={`font-mono text-[10px] uppercase border ${
-                        q.success
-                          ? "bg-surface-success text-green-400 border-surface-success-border"
-                          : "bg-surface-error text-red-400 border-surface-error-border"
-                      }`}
+                      variant={q.success ? "success" : "destructive"}
+                      className="font-mono text-[10px] uppercase"
                     >
                       {q.success ? (
                         <CheckCircle className="h-3 w-3 mr-1" />
@@ -192,7 +236,7 @@ export function LLMPage() {
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

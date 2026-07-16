@@ -109,32 +109,28 @@ export function TransformsPage() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-blur-in">
+    <div className="space-y-6 animate-fade-blur-in">
       <div>
-        <h1 className="font-display text-[32px] leading-tight font-bold text-ink">
-          Data Transforms
-        </h1>
-        <p className="text-sm text-ink-dim mt-1.5">
+        <h1 className="page-heading">Data Transforms</h1>
+        <p className="page-subheading mt-1">
           Clean and transform your datasets
         </p>
       </div>
 
       <GlassCard elevation="strong">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-violet-glow border border-violet/20 flex items-center justify-center">
-            <Wand2 className="h-5 w-5 text-violet" />
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-violet-glow border border-violet/20 flex items-center justify-center">
+            <Wand2 className="h-4 w-4 text-violet" />
           </div>
-          <h2 className="text-sm font-semibold text-ink-dim uppercase tracking-wider">
-            Pipeline
-          </h2>
+          <p className="section-heading">Pipeline</p>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <Select
             value={selectedDatasetId}
             onValueChange={setSelectedDatasetId}
           >
-            <SelectTrigger className="h-11 rounded-full bg-glass-bg border-glass-border text-ink focus:border-teal focus:ring-1 focus:ring-teal">
+            <SelectTrigger className="h-10 rounded-[var(--radius-sm)] bg-glass-bg border-glass-border text-ink text-[13px] focus:border-teal focus:ring-1 focus:ring-teal">
               <SelectValue placeholder="Select a dataset..." />
             </SelectTrigger>
             <SelectContent className="glass-strong border-glass-border text-ink">
@@ -146,34 +142,34 @@ export function TransformsPage() {
             </SelectContent>
           </Select>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2.5">
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="outline"
-                  className="gap-2.5 rounded-full border-glass-border text-ink-dim hover:text-ink hover:border-teal"
+                  className="gap-2 rounded-[var(--radius-sm)] border-glass-border text-ink-dim hover:text-ink hover:border-teal"
                   disabled={!selectedDatasetId}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   Add Transform
                 </Button>
               </DialogTrigger>
-              <DialogContent className="glass-strong text-ink rounded-[var(--radius-lg)] max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="font-display text-lg font-bold text-ink">
+              <DialogContent className="glass-strong text-ink rounded-[var(--radius-xl)] max-w-md p-0 overflow-hidden">
+                <DialogHeader className="px-6 pt-6 pb-0">
+                  <DialogTitle className="font-display text-lg font-semibold text-ink">
                     Add Transform
                   </DialogTitle>
                 </DialogHeader>
-                <div className="space-y-5 pt-2">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-ink-dim uppercase tracking-wider">
+                <div className="space-y-4 p-6 pt-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[12px] font-medium text-ink-dim uppercase tracking-wider">
                       Type
                     </Label>
                     <Select
                       value={transformType}
                       onValueChange={setTransformType}
                     >
-                      <SelectTrigger className="h-11 rounded-full bg-glass-bg border-glass-border text-ink focus:border-teal focus:ring-1 focus:ring-teal">
+                      <SelectTrigger className="h-10 rounded-[var(--radius-sm)] bg-glass-bg border-glass-border text-ink text-[13px] focus:border-teal focus:ring-1 focus:ring-teal">
                         <SelectValue placeholder="Select transform type..." />
                       </SelectTrigger>
                       <SelectContent className="glass-strong border-glass-border text-ink">
@@ -185,33 +181,33 @@ export function TransformsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-ink-dim uppercase tracking-wider">
+                  <div className="space-y-1.5">
+                    <Label className="text-[12px] font-medium text-ink-dim uppercase tracking-wider">
                       Column
                     </Label>
                     <Input
                       placeholder="column_name"
                       value={transformCol}
                       onChange={(e) => setTransformCol(e.target.value)}
-                      className="h-11 rounded-full bg-glass-bg border-glass-border text-ink placeholder:text-ink-faint focus:border-teal focus:ring-1 focus:ring-teal"
+                      className="h-10 rounded-[var(--radius-sm)] bg-glass-bg border-glass-border text-ink placeholder:text-ink-faint focus:border-teal focus:ring-1 focus:ring-teal"
                     />
                   </div>
                   {transformTypes.find((t) => t.value === transformType)
                     ?.needsValue && (
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-ink-dim uppercase tracking-wider">
+                    <div className="space-y-1.5">
+                      <Label className="text-[12px] font-medium text-ink-dim uppercase tracking-wider">
                         Value
                       </Label>
                       <Input
                         placeholder="value"
                         value={transformValue}
                         onChange={(e) => setTransformValue(e.target.value)}
-                        className="h-11 rounded-full bg-glass-bg border-glass-border text-ink placeholder:text-ink-faint focus:border-teal focus:ring-1 focus:ring-teal"
+                        className="h-10 rounded-[var(--radius-sm)] bg-glass-bg border-glass-border text-ink placeholder:text-ink-faint focus:border-teal focus:ring-1 focus:ring-teal"
                       />
                     </div>
                   )}
                   <Button
-                    className="w-full h-11 rounded-full bg-teal hover:bg-teal/90 text-void font-medium transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_26px_rgba(45,212,191,0.5)]"
+                    className="w-full h-10 btn-glow"
                     onClick={addTransform}
                     disabled={!transformType || !transformCol}
                   >
@@ -221,47 +217,47 @@ export function TransformsPage() {
               </DialogContent>
             </Dialog>
 
-            <Button
+            <button
               onClick={applyTransforms}
               disabled={
                 !selectedDatasetId || transforms.length === 0 || isApplying
               }
-              className="gap-2.5 rounded-full bg-teal hover:bg-teal/90 text-void font-medium transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_26px_rgba(45,212,191,0.5)]"
+              className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-teal hover:bg-teal/90 text-void px-4 py-2 text-[13px] font-medium transition-all disabled:opacity-40 disabled:pointer-events-none"
             >
-              <Play className="h-4 w-4" />
+              <Play className="h-3.5 w-3.5" />
               {isApplying ? "Applying..." : "Apply All"}
-            </Button>
+            </button>
           </div>
         </div>
       </GlassCard>
 
-      <div>
-        <h2 className="text-sm font-semibold text-ink-dim uppercase tracking-wider mb-5">
+      <section>
+        <p className="section-heading mb-4">
           Queued Transforms ({transforms.length})
-        </h2>
+        </p>
         {transforms.length === 0 ? (
-          <GlassCard elevation="default" className="text-center py-16">
-            <Layers className="h-14 w-14 mx-auto mb-4 text-ink-faint opacity-25" />
-            <p className="text-sm text-ink-dim">
+          <GlassCard elevation="default" className="text-center py-14">
+            <Layers className="h-10 w-10 mx-auto mb-3 text-ink-faint opacity-20" />
+            <p className="text-[13px] text-ink-dim">
               No transforms queued. Add one above.
             </p>
           </GlassCard>
         ) : (
-          <div className="space-y-3 stagger-children">
+          <div className="space-y-2.5 stagger-children">
             {transforms.map((t, i) => (
               <GlassCard key={t.id} elevation="default" animate={false}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs font-mono text-ink-faint w-6">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-mono text-ink-faint w-5">
                       #{i + 1}
                     </span>
                     <Badge
                       variant="secondary"
-                      className="bg-glass-bg-strong text-ink-dim border border-glass-border font-mono text-[10px] uppercase"
+                      className="font-mono text-[10px] uppercase"
                     >
                       {t.type}
                     </Badge>
-                    <span className="text-sm text-ink">
+                    <span className="text-[13px] text-ink">
                       {t.params.column as string}
                       {t.params.value ? (
                         <span className="text-ink-faint">
@@ -271,20 +267,19 @@ export function TransformsPage() {
                       ) : null}
                     </span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+                  <button
                     onClick={() => deleteTransform(t.id)}
-                    className="h-9 w-9 text-ink-faint hover:text-red-400 hover:bg-surface-error"
+                    className="p-1.5 rounded text-ink-faint hover:text-red-400 hover:bg-surface-error transition-colors"
+                    aria-label={`Delete transform ${t.type}`}
                   >
                     <Trash2 className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
               </GlassCard>
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import api from "@/lib/api";
-import type { User, AuthTokens } from "@/types/api";
+import type { User } from "@/types/api";
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (
     email: string,
@@ -15,31 +16,36 @@ interface AuthState {
   ) => Promise<void>;
   logout: () => void;
   fetchProfile: () => Promise<void>;
+  clearError: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  isAuthenticated: !!localStorage.getItem("access_token"),
+  isAuthenticated: false,
   isLoading: false,
+  error: null,
 
   login: async (email, password) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
-      const res = await api.post<AuthTokens>("/auth/login", {
+      // Tokens are now set as httpOnly cookies by the backend
+      await api.post("/auth/login", {
         email,
         password,
       });
-      localStorage.setItem("access_token", res.data.access_token);
-      localStorage.setItem("refresh_token", res.data.refresh_token);
       set({ isAuthenticated: true });
       await useAuthStore.getState().fetchProfile();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      set({ error: message });
+      throw err;
     } finally {
       set({ isLoading: false });
     }
   },
 
   register: async (email, password, firstName, lastName) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       await api.post("/auth/register", {
         email,
@@ -47,29 +53,34 @@ export const useAuthStore = create<AuthState>((set) => ({
         first_name: firstName,
         last_name: lastName,
       });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Registration failed";
+      set({ error: message });
+      throw err;
     } finally {
       set({ isLoading: false });
     }
   },
 
-  logout: () => {
-    const refreshToken = localStorage.getItem("refresh_token");
-    if (refreshToken) {
-      api.post("/auth/logout").catch(() => {});
+  logout: async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // Ignore errors on logout
+    } finally {
+      // Tokens are cleared as httpOnly cookies by backend
+      set({ user: null, isAuthenticated: false, error: null });
     }
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    set({ user: null, isAuthenticated: false });
   },
 
   fetchProfile: async () => {
     try {
       const res = await api.get<User>("/auth/me");
-      set({ user: res.data, isAuthenticated: true });
+      set({ user: res.data, isAuthenticated: true, error: null });
     } catch {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
       set({ user: null, isAuthenticated: false });
     }
   },
+
+  clearError: () => set({ error: null }),
 }));

@@ -1,23 +1,28 @@
-import axios from "axios";
-import type { AuthTokens } from "@/types/api";
+import axios, { AxiosError } from "axios";
 
 const API_BASE = "/api/v1";
+
+export interface ApiError {
+  requestId?: string;
+  message: string;
+  code?: string;
+  userMessage: string;
+  status?: number;
+}
 
 const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
+  withCredentials: true, // Include httpOnly cookies in requests
 });
 
-let refreshPromise: Promise<AuthTokens> | null = null;
+let refreshPromise: Promise<void> | null = null;
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  // CSRF token from cookie (if present)
   const csrf = document.cookie
     .split("; ")
-    .find((c) => c.startsWith("csrf_token="))
+    .find((c) => c.startsWith("ai_data_csrf="))
     ?.split("=")[1];
   if (csrf) {
     config.headers["X-CSRF-Token"] = csrf;
@@ -27,9 +32,10 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as any;
 
+    // Handle 401 Unauthorized — attempt token refresh
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
@@ -39,22 +45,17 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       if (!refreshPromise) {
-        const refreshToken = localStorage.getItem("refresh_token");
-        if (!refreshToken) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          window.location.href = "/login";
-          return Promise.reject(error);
-        }
-
         refreshPromise = axios
-          .post(`${API_BASE}/auth/refresh`, { refresh_token: refreshToken })
-          .then((res) => res.data)
+          .post(
+            `${API_BASE}/auth/refresh`,
+            {}, // Empty body; refresh token is in httpOnly cookie (auto-included via withCredentials)
+            { withCredentials: true }
+          )
+          .then(() => {})
           .catch(() => {
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("refresh_token");
+            // Refresh failed — clear session and redirect to login
             window.location.href = "/login";
-            throw new Error("Refresh failed");
+            throw new Error("Session expired. Please log in again.");
           })
           .finally(() => {
             refreshPromise = null;
@@ -62,10 +63,8 @@ api.interceptors.response.use(
       }
 
       try {
-        const tokens = await refreshPromise;
-        localStorage.setItem("access_token", tokens.access_token);
-        localStorage.setItem("refresh_token", tokens.refresh_token);
-        originalRequest.headers.Authorization = `Bearer ${tokens.access_token}`;
+        await refreshPromise;
+        // Retry original request with new tokens (in cookies)
         return api(originalRequest);
       } catch {
         return Promise.reject(error);
@@ -75,5 +74,50 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Extract and format API error into user-friendly message
+ */
+export function formatApiError(error: unknown): ApiError {
+  if (!axios.isAxiosError(error)) {
+    return {
+      message: String(error),
+      userMessage: "An unexpected error occurred. Please try again.",
+      code: "UNKNOWN_ERROR",
+    };
+  }
+
+  const status = error.response?.status;
+  const data = error.response?.data as any;
+  const requestId = data?.request_id || "unknown";
+
+  // Map HTTP status to user-friendly message
+  let userMessage = "An error occurred. Please try again.";
+
+  if (status === 400) {
+    userMessage = data?.message || "Invalid input. Please check your data.";
+  } else if (status === 401) {
+    userMessage = "Your session has expired. Please log in again.";
+  } else if (status === 403) {
+    userMessage = "You don't have permission to perform this action.";
+  } else if (status === 404) {
+    userMessage = "The requested resource was not found.";
+  } else if (status === 422) {
+    const field = data?.field || data?.loc?.join(".") || "unknown field";
+    userMessage = `Invalid ${field}: ${data?.message || "please check your input"}`;
+  } else if (status === 429) {
+    userMessage = "Too many requests. Please wait a moment and try again.";
+  } else if (status === 500 || status === 502 || status === 503) {
+    userMessage = "Server error. Please try again later.";
+  }
+
+  return {
+    requestId,
+    message: data?.message || error.message,
+    userMessage,
+    code: data?.error_code || `HTTP_${status}`,
+    status,
+  };
+}
 
 export default api;
