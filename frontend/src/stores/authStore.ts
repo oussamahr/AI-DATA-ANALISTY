@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import api from "@/lib/api";
+import api from "@/lib/api-client";
 import type { User } from "@/types/api";
 
 interface AuthState {

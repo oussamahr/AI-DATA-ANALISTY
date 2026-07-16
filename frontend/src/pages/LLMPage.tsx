@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import api from "@/lib/api";
+import api from "@/lib/api-client";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { useErrorHandler } from "@/hooks/useErrorHandler";
 import type { LLMQuery } from "@/types/api";

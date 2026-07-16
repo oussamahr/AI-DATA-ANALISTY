@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useErrorHandler } from "./useErrorHandler";
-import { formatApiError } from "@/lib/api";
+import { formatApiError } from "@/lib/api-error";
 
 describe("useErrorHandler", () => {
   it("returns handleError and formatApiError", () => {

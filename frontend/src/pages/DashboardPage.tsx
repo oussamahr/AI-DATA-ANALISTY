@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import api from "@/lib/api";
+import api from "@/lib/api-client";
 import { useDatasetStore } from "@/stores/datasetStore";
 import type { LLMQuery } from "@/types/api";
 import { formatBytes } from "@/lib/utils";
