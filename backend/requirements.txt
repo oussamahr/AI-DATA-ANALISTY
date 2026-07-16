@@ -31,7 +31,7 @@ xlrd==2.0.1
 slowapi==0.1.9
 
 # Redis
-redis==5.0.1
+redis==8.0.1
 
 # Server-side chart rendering
 matplotlib==3.11.0
