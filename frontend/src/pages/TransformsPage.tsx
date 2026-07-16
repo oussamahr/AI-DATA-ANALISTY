@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import api from "@/lib/api-client";
 import { useDatasetStore } from "@/stores/datasetStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

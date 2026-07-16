@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import api from "@/lib/api-client";
 import type { User, DashboardStats } from "@/types/api";
 import { GlassCard } from "@/components/common/GlassCard";
 import { formatBytes, colorMap } from "@/lib/utils";

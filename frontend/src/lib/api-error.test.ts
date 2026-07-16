@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatApiError } from "./api";
+import { formatApiError } from "./api-error";
 import type { AxiosError } from "axios";
 
 function makeAxiosError(status: number, data?: unknown, message = "Request failed"): AxiosError {
