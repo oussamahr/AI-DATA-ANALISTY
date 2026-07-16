@@ -1,0 +1,50 @@
+[tool.bandit]
+targets = ["backend/"]
+exclude = ["**/tests/", "**/venv/", "**/.venv/", "**/__pycache__/"]
+skips = ["B101"]
+assert_used = false
+hardcoded_password_string = false
+hardcoded_tmp_directory = false
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.py$'
+extend-exclude = '''
+/(
+    \.venv
+  | venv
+)/
+'''
+
+[tool.coverage.run]
+source = ["backend"]
+omit = [
+    "*/tests/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/__pycache__/*",
+]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+use_parentheses = true
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["E712"]
+
+[tool.ruff.format]
+quote-style = "double"

@@ -1,0 +1,17 @@
+.venv/
+venv/
+.env
+.git/
+.gitignore
+**/__pycache__/
+**/*.pyc
+*.md
+!docker/Dockerfile
+.idea/
+.vscode/
+.DS_Store
+*.pem
+*.key
+uploads/
+media/
+

@@ -1,0 +1,61 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.swp
+*.swo
+*.swn
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Uploads
+uploads/
+media/
+
+# Secrets
+*.pem
+*.key
+*.cert
+
+# CI / test artifacts
+.coverage
+htmlcov/
+*.coverage
+.s3test/
+test-results/
+
+# Docker
+docker/db-data/
+
+# Bandit / SAST
+bandit-results.sarif
+trivy-results.sarif
+
+# Alembic
+backend/alembic/versions/
