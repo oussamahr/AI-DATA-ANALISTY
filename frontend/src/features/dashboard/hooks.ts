@@ -1,9 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { dashboardApi } from "./api";
 
-export const useDashboardStats = () => {
+export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard", "stats"],
-    queryFn: () => dashboardApi.getStats(),
+    queryFn: dashboardApi.getStats,
   });
-};
+}
+
+export function useAdminStats(enabled = false) {
+  return useQuery({
+    queryKey: ["admin", "stats"],
+    queryFn: dashboardApi.getAdminStats,
+    enabled,
+  });
+}
