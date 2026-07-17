@@ -217,13 +217,13 @@ export default function AnalyticsPage() {
         <h2 className="text-lg font-semibold text-white mb-4">Analysis Distribution</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Descriptive", value: "847", pct: "42%", color: "violet" },
-            { label: "Diagnostic", value: "523", pct: "26%", color: "cyan" },
-            { label: "Predictive", value: "412", pct: "20%", color: "amber" },
-            { label: "Prescriptive", value: "241", pct: "12%", color: "emerald" },
+            { label: "Descriptive", value: "847", pct: "42%", textColor: "text-violet-400" },
+            { label: "Diagnostic", value: "523", pct: "26%", textColor: "text-cyan-400" },
+            { label: "Predictive", value: "412", pct: "20%", textColor: "text-amber-400" },
+            { label: "Prescriptive", value: "241", pct: "12%", textColor: "text-emerald-400" },
           ].map((stat) => (
             <div key={stat.label} className="text-center p-4 rounded-xl bg-white/3">
-              <div className={`text-2xl font-bold text-${stat.color}-400 mb-1`}>{stat.value}</div>
+              <div className={`text-2xl font-bold ${stat.textColor} mb-1`}>{stat.value}</div>
               <div className="text-white/40 text-sm">{stat.label}</div>
               <div className="text-white/20 text-xs mt-1">{stat.pct} of total</div>
             </div>
