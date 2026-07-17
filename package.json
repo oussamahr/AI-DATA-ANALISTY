@@ -1,0 +1,14 @@
+{
+  "name": "ai-data-analytics",
+  "private": true,
+  "description": "Multi-tenant AI-powered data analytics platform — root package for shared dependencies",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd frontend && npm run start"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "4.1.17",
+    "tailwindcss": "4.1.17"
+  }
+}
