@@ -1,15 +1,24 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { llmApi, type LlmQueryRequest } from "./api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { llmApi } from "./api";
 
-export const useAskQuestion = () => {
-  return useMutation({
-    mutationFn: (data: LlmQueryRequest) => llmApi.askQuestion(data),
-  });
+export const llmKeys = {
+  all: ["llm"] as const,
+  history: (limit: number, offset: number) => [...llmKeys.all, "history", { limit, offset }] as const,
 };
 
-export const useLlmHistory = () => {
+export function useLlmHistory(limit = 50, offset = 0) {
   return useQuery({
-    queryKey: ["llm", "history"],
-    queryFn: () => llmApi.getHistory(),
+    queryKey: llmKeys.history(limit, offset),
+    queryFn: () => llmApi.history(limit, offset),
   });
-};
+}
+
+export function useAskLlm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: llmApi.query,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: llmKeys.all });
+    },
+  });
+}

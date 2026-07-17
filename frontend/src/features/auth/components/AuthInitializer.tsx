@@ -1,12 +1,9 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
+import type { ReactNode } from "react";
 import { useAuthStore } from "../store";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 
-interface AuthInitializerProps {
-  children: ReactNode;
-}
-
-export function AuthInitializer({ children }: AuthInitializerProps) {
+export function AuthInitializer({ children }: { children: ReactNode }) {
   const initialize = useAuthStore((s) => s.initialize);
   const isInitialized = useAuthStore((s) => s.isInitialized);
 
@@ -16,8 +13,8 @@ export function AuthInitializer({ children }: AuthInitializerProps) {
 
   if (!isInitialized) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex h-screen items-center justify-center bg-background">
+        <LoadingSpinner text="Initializing secure session..." />
       </div>
     );
   }

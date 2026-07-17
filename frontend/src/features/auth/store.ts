@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { authApi, type User } from "./api";
+import { authApi } from "./api";
+import type { User } from "./types";
 
 interface AuthState {
   user: User | null;
@@ -12,6 +13,7 @@ interface AuthState {
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<User>;
   logout: () => Promise<void>;
   clear: () => void;
+  setUser: (user: User | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -51,6 +53,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       await authApi.logout();
+    } catch {
+      // Ignore logout errors, still clear local state
     } finally {
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
@@ -59,4 +63,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   clear: () => {
     set({ user: null, isLoading: false, isAuthenticated: false, isInitialized: true });
   },
+
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
 }));
