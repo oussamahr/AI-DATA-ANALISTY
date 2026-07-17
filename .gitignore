@@ -59,6 +59,9 @@ frontend/.next/
 frontend/tsconfig.tsbuildinfo
 frontend/next-env.d.ts
 
+# Root node_modules (shared deps like tailwindcss)
+node_modules/
+
 # Bandit / SAST
 bandit-results.sarif
 trivy-results.sarif

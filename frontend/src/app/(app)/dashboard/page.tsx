@@ -117,10 +117,10 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
           <div className="space-y-3">
             {[
-              { label: "Upload Dataset", icon: Database, href: "/datasets", color: "violet" },
-              { label: "Run Analysis", icon: BarChart3, href: "/analytics", color: "cyan" },
-              { label: "Ask AI", icon: Sparkles, href: "/llm", color: "amber" },
-              { label: "Create Chart", icon: Activity, href: "/visualizations", color: "emerald" },
+              { label: "Upload Dataset", icon: Database, href: "/datasets", bgColor: "bg-violet-500/10", textColor: "text-violet-400" },
+              { label: "Run Analysis", icon: BarChart3, href: "/analytics", bgColor: "bg-cyan-500/10", textColor: "text-cyan-400" },
+              { label: "Ask AI", icon: Sparkles, href: "/llm", bgColor: "bg-amber-500/10", textColor: "text-amber-400" },
+              { label: "Create Chart", icon: Activity, href: "/visualizations", bgColor: "bg-emerald-500/10", textColor: "text-emerald-400" },
             ].map((action) => {
               const Icon = action.icon;
               return (
@@ -129,8 +129,8 @@ export default function DashboardPage() {
                   href={action.href}
                   className={`flex items-center gap-3 p-3 rounded-xl bg-white/3 hover:bg-white/6 border border-white/5 hover:border-white/10 transition-all duration-200 group`}
                 >
-                  <div className={`w-9 h-9 rounded-lg bg-${action.color}-500/10 flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <Icon className={`w-4 h-4 text-${action.color}-400`} />
+                  <div className={`w-9 h-9 rounded-lg ${action.bgColor} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <Icon className={`w-4 h-4 ${action.textColor}`} />
                   </div>
                   <span className="text-white/70 text-sm font-medium group-hover:text-white transition-colors">
                     {action.label}
