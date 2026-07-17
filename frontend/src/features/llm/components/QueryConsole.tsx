@@ -28,22 +28,22 @@ export function QueryConsole({ datasetId }: { datasetId?: string }) {
     setQuery("");
 
     try {
-      const response = await askQuestion.mutateAsync({ 
-        query: userMsg.content,
+      const result = await askQuestion.mutateAsync({ 
+        prompt: userMsg.content,
         dataset_id: datasetId 
       });
       
       const aiMsg: Message = { 
         id: (Date.now() + 1).toString(), 
         role: "assistant", 
-        content: response.answer || "I processed your request, but received an empty response."
+        content: result.response || "I processed your request, but received an empty response."
       };
       setMessages(prev => [...prev, aiMsg]);
     } catch (error: any) {
       const errorMsg: Message = { 
         id: (Date.now() + 1).toString(), 
         role: "assistant", 
-        content: "Sorry, I encountered an error communicating with the backend API: " + (error.response?.data?.detail || error.message)
+        content: "Sorry, I encountered an error communicating with the backend API: " + (error.response?.data?.error || error.response?.data?.detail || error.message)
       };
       setMessages(prev => [...prev, errorMsg]);
     }

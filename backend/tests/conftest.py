@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -58,7 +59,7 @@ async def db() -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=cast(Any, app)), base_url="http://test"
     ) as ac:
         yield ac
 

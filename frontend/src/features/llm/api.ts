@@ -1,14 +1,18 @@
 import { apiClient } from "@/lib/api-client";
 
 export interface LlmQueryRequest {
-  query: string;
+  prompt: string;
   dataset_id?: string;
 }
 
 export interface LlmQueryResponse {
-  answer: string;
-  query_intent?: string;
-  visualizations?: any[];
+  id: string;
+  response: string;
+  model: string;
+  tokens_prompt: number;
+  tokens_completion: number;
+  duration_ms: number | null;
+  created_at: string;
 }
 
 export const llmApi = {

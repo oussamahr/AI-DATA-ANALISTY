@@ -90,7 +90,10 @@ class LLMService:
         try:
             import openai
 
-            client = openai.AsyncOpenAI(api_key=settings.LLM_API_KEY)
+            client = openai.AsyncOpenAI(
+                api_key=settings.LLM_API_KEY,
+                base_url=settings.LLM_BASE_URL or None,
+            )
 
             messages = self._build_messages(prompt, dataset_context)
 
@@ -148,7 +151,10 @@ class LLMService:
         try:
             import openai
 
-            client = openai.AsyncOpenAI(api_key=settings.LLM_API_KEY)
+            client = openai.AsyncOpenAI(
+                api_key=settings.LLM_API_KEY,
+                base_url=settings.LLM_BASE_URL or None,
+            )
 
             messages = self._build_messages(prompt, dataset_context)
 

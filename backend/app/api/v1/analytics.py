@@ -1,12 +1,14 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.dependencies import get_current_user, require_verified
 from app.core.security.audit import audit_logger
 from app.models.analysis import AnalysisRun
+from app.models.dataset import Dataset
 from app.models.user import User
 from app.schemas.analytics import (
     AIInsightResponse,
@@ -29,6 +31,23 @@ from app.tasks.analytics_tasks import (
 )
 
 router = APIRouter()
+
+
+@router.get("/stats")
+async def dashboard_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    dataset_count = await db.scalar(
+        select(func.count()).select_from(Dataset).where(Dataset.user_id == current_user.id, Dataset.deleted_at.is_(None))
+    )
+    run_count = await db.scalar(
+        select(func.count()).select_from(AnalysisRun).where(AnalysisRun.user_id == current_user.id)
+    )
+    return {
+        "total_datasets": dataset_count or 0,
+        "total_analysis_runs": run_count or 0,
+    }
 
 
 @router.post("/profile/{dataset_id}", response_model=DatasetProfileResponse | TaskResponse)

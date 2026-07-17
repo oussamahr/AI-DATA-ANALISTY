@@ -1,6 +1,16 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Database, Activity, BarChart, Settings, Bot } from "lucide-react";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { LayoutDashboard, Database, Activity, BarChart, Bot, LogOut, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/features/auth/store";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const NAV_ITEMS = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -12,6 +22,13 @@ const NAV_ITEMS = [
 
 export function AppLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout, isLoading } = useAuthStore();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -52,10 +69,32 @@ export function AppLayout() {
             </h1>
           </div>
           <div className="flex items-center space-x-4">
-            {/* User profile placeholder */}
-            <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center">
-              <Settings className="h-4 w-4 text-muted-foreground" />
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {user?.first_name || user?.email}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user?.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} disabled={isLoading}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <div className="flex-1 overflow-auto p-6">

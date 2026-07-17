@@ -48,7 +48,8 @@ class Settings(BaseSettings):
 
     LLM_PROVIDER: str = "openai"
     LLM_API_KEY: str = ""
-    LLM_MODEL: str = "gpt-4"
+    LLM_BASE_URL: str = ""
+    LLM_MODEL: str = "gpt-4o"
     LLM_MAX_TOKENS: int = 4096
     LLM_TEMPERATURE: float = 0.7
 

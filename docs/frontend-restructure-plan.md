@@ -39,6 +39,7 @@
 
 ## 2. Target Structure
 
+
 ```
 frontend/
 ├── index.html
