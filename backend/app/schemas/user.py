@@ -36,6 +36,7 @@ class UserResponse(BaseModel):
     last_name: str
     is_verified: bool
     is_active: bool
+    is_superuser: bool = False
     role_id: UUID | None
     tenant_id: UUID | None
     last_login_at: datetime | None
