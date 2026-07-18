@@ -19,6 +19,8 @@ from app.core.security.auth import (
 )
 from app.core.security.exceptions import AppException, UnauthorizedException
 from app.core.security.password_validators import validate_password_strength
+from app.models.role import Role
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.user import UserCreate
 
@@ -44,6 +46,22 @@ class AuthService:
             last_name=data.last_name,
         )
         self.db.add(user)
+        await self.db.flush()
+
+        tenant_name = f"{data.first_name or 'User'}'s Workspace"
+        tenant = Tenant(
+            id=uuid.uuid4(),
+            name=tenant_name,
+            domain=f"{data.email.split('@')[0]}-workspace.example.com",
+        )
+        self.db.add(tenant)
+        await self.db.flush()
+
+        user.tenant_id = tenant.id
+        admin_role = await self.db.execute(select(Role).where(Role.name == "admin"))
+        admin_role_obj = admin_role.scalar_one_or_none()
+        if admin_role_obj:
+            user.role_id = admin_role_obj.id
         await self.db.flush()
         return user
 

@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,9 +105,13 @@ class AnalyticsService:
         self.db = db
 
     async def _get_dataset(self, dataset_id: str, user: User) -> Dataset:
+        try:
+            uid = uuid.UUID(dataset_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid dataset ID")
         result = await self.db.execute(
             select(Dataset).where(
-                Dataset.id == uuid.UUID(dataset_id),
+                Dataset.id == uid,
                 Dataset.is_deleted == False,
             )
         )

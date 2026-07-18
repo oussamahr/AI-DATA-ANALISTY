@@ -7,6 +7,8 @@ from fastapi import Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fastapi import HTTPException, status
+
 from app.core.database import get_session
 from app.core.security.exceptions import AppException
 from app.models.dataset import Dataset
@@ -20,9 +22,13 @@ class TransformService:
         self.db = db
 
     async def _get_dataset(self, dataset_id: str, user: User) -> Dataset:
+        try:
+            uid = uuid.UUID(dataset_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid dataset ID")
         result = await self.db.execute(
             select(Dataset).where(
-                Dataset.id == uuid.UUID(dataset_id),
+                Dataset.id == uid,
                 Dataset.is_deleted == False,
             )
         )
@@ -34,9 +40,13 @@ class TransformService:
         return ds
 
     async def _next_order(self, dataset_id: str) -> int:
+        try:
+            uid = uuid.UUID(dataset_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid dataset ID")
         result = await self.db.execute(
             select(func.max(DataTransform.applied_order)).where(
-                DataTransform.dataset_id == uuid.UUID(dataset_id)
+                DataTransform.dataset_id == uid
             )
         )
         max_order = result.scalar() or 0

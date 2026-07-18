@@ -39,7 +39,7 @@ async def dashboard_stats(
     db: AsyncSession = Depends(get_session),
 ):
     dataset_count = await db.scalar(
-        select(func.count()).select_from(Dataset).where(Dataset.user_id == current_user.id, Dataset.deleted_at.is_(None))
+        select(func.count()).select_from(Dataset).where(Dataset.owner_id == current_user.id, Dataset.deleted_at.is_(None))
     )
     run_count = await db.scalar(
         select(func.count()).select_from(AnalysisRun).where(AnalysisRun.user_id == current_user.id)

@@ -2,7 +2,7 @@ import os
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 
-from app.core.dependencies import get_current_user, require_verified
+from app.core.dependencies import get_current_user
 from app.core.security.audit import audit_logger
 from app.core.security.validators import (
     validate_file_extension,
@@ -23,7 +23,7 @@ async def upload_dataset(
     file: UploadFile = File(...),
     name: str = Form(...),
     description: str = Form(""),
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     dataset_service: DatasetService = Depends(),
 ):
     validate_no_sql_injection(name)
@@ -48,7 +48,7 @@ async def upload_dataset(
     return dataset
 
 
-@router.get("/", response_model=DatasetListResponse)
+@router.get("", response_model=DatasetListResponse)
 async def list_datasets(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
