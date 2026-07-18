@@ -1,124 +1,96 @@
-"use client";
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Mail, ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { authApi } from '@/services/api'
+import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { api } from "@/lib/api";
-import FerrofluidBackground from "@/components/FerrofluidBackground";
-import { Mail, ArrowLeft, Sparkles, CheckCircle } from "lucide-react";
+const forgotSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+})
+
+type ForgotForm = z.infer<typeof forgotSchema>
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ForgotForm>({
+    resolver: zodResolver(forgotSchema),
+  })
+
+  const onSubmit = async (data: ForgotForm) => {
+    setIsLoading(true)
     try {
-      await api.forgotPassword(email);
-      setSent(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      await authApi.forgotPassword(data.email)
+      setSubmitted(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to send reset email')
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  return (
-    <div className="min-h-screen relative bg-[#03010A] overflow-hidden">
-      <FerrofluidBackground variant="reset" />
-
-      <div className="relative z-10 min-h-screen flex items-center justify-center w-full px-4 py-12">
-        <div className="w-full max-w-md">
-          <div className="glass-card p-8">
-            <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-white mb-2">
-                Reset password
-              </h1>
-              <p className="text-white/50 text-sm">
-                Enter your email and we&apos;ll send you a reset link
-              </p>
-            </div>
-
-            {sent ? (
-              <div className="text-center py-8">
-                <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-white mb-2">
-                  Check your email
-                </h2>
-                <p className="text-white/50 text-sm mb-6">
-                  We&apos;ve sent a password reset link to{" "}
-                  <span className="text-white/80">{email}</span>
-                </p>
-                <Link
-                  href="/login"
-                  className="inline-flex items-center gap-2 text-violet-400 hover:text-violet-300 font-medium transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to sign in
-                </Link>
-              </div>
-            ) : (
-              <>
-                {error && (
-                  <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                    {error}
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-medium text-white/70 mb-2">
-                      Email address
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        required
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-semibold hover:from-violet-500 hover:to-cyan-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Sending...
-                      </div>
-                    ) : (
-                      "Send reset link"
-                    )}
-                  </button>
-                </form>
-
-                <div className="mt-6 text-center">
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center gap-2 text-white/40 hover:text-white/60 text-sm transition-colors"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to sign in
-                  </Link>
-                </div>
-              </>
-            )}
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="max-w-sm text-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-[#E8F0E9] flex items-center justify-center mb-6">
+            <Mail className="w-8 h-8 text-[#5C8A67]" />
           </div>
+          <h1 className="text-2xl font-semibold mb-2">Check your email</h1>
+          <p className="text-[#6B7280] mb-8">
+            We sent a password reset link to your email address.
+          </p>
+          <Link to="/login" className="btn btn-secondary inline-flex">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to login
+          </Link>
         </div>
       </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 bg-[#F8F6F2]">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md"
+      >
+        <div className="text-center mb-8">
+          <Link to="/login" className="inline-flex items-center text-sm text-[#6B7280] hover:text-[#3A4B41] mb-6">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to login
+          </Link>
+          <h1 className="text-3xl font-semibold tracking-tight">Forgot your password?</h1>
+          <p className="text-[#6B7280] mt-2">We'll email you instructions to reset it.</p>
+        </div>
+
+        <div className="card p-8">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Email address</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-3.5 h-4 w-4 text-[#9CA3AF]" />
+                <Input {...register('email')} type="email" placeholder="you@company.com" className="pl-11" />
+              </div>
+              {errors.email && <p className="text-sm text-[#C65B5B] mt-1">{errors.email.message}</p>}
+            </div>
+
+            <Button type="submit" disabled={isLoading} className="w-full h-11">
+              {isLoading ? 'Sending...' : 'Send reset link'}
+            </Button>
+          </form>
+        </div>
+      </motion.div>
     </div>
-  );
+  )
 }

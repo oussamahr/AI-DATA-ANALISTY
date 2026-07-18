@@ -1,156 +1,126 @@
-"use client";
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { useAuthStore } from '@/store/auth'
+import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/lib/store";
-import { api } from "@/lib/api";
-import FerrofluidBackground from "@/components/FerrofluidBackground";
-import { Eye, EyeOff, Mail, Lock, Sparkles } from "lucide-react";
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+
+type LoginForm = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuthStore();
-  const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const { login } = useAuthStore()
+  const navigate = useNavigate()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+  })
 
+  const onSubmit = async (data: LoginForm) => {
+    setIsLoading(true)
     try {
-      await login(email, password);
-      router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      await login(data.email, data.password)
+      toast.success('Welcome back!')
+      navigate('/dashboard')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Login failed')
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen relative bg-[#03010A] overflow-hidden">
-      <FerrofluidBackground variant="login" />
-
-      {/* Login card */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center w-full px-4 py-12">
-        <div className="w-full max-w-md">
-          <div className="glass-card p-8">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-white mb-2">
-                Welcome back
-              </h1>
-              <p className="text-white/50 text-sm">
-                Sign in to your DataMind account
-              </p>
+    <div className="min-h-screen flex items-center justify-center px-4 bg-[#F8F6F2]">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-[400px]"
+      >
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-[#3A4B41] rounded-xl flex items-center justify-center">
+              <span className="text-[#E6CFA7] text-2xl font-semibold tracking-[-1px]">A</span>
             </div>
-
-            {error && (
-              <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="w-full pl-10 pr-12 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-white/20 bg-white/5 text-violet-500 focus:ring-violet-500/20"
-                  />
-                  <span className="text-sm text-white/50">Remember me</span>
-                </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-violet-400 hover:text-violet-300 transition-colors"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-semibold hover:from-violet-500 hover:to-cyan-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Signing in...
-                  </div>
-                ) : (
-                  "Sign in"
-                )}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-white/40 text-sm">
-                Don&apos;t have an account?{" "}
-                <Link
-                  href="/register"
-                  className="text-violet-400 hover:text-violet-300 font-medium transition-colors"
-                >
-                  Create one
-                </Link>
-              </p>
+            <div className="text-left">
+              <div className="font-semibold text-2xl tracking-[-0.5px] text-[#1F2937]">Aether</div>
+              <div className="text-xs text-[#6B7280] -mt-1">AI ANALYTICS</div>
             </div>
           </div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[#1F2937]">Welcome back</h1>
+          <p className="text-[#6B7280] mt-2">Sign in to your account</p>
         </div>
-      </div>
+
+        <div className="card p-8">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-[#1F2937] mb-1.5">Email address</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-3.5 h-4 w-4 text-[#9CA3AF]" />
+                <Input
+                  {...register('email')}
+                  type="email"
+                  placeholder="you@company.com"
+                  className="pl-11"
+                />
+              </div>
+              {errors.email && <p className="text-sm text-[#C65B5B] mt-1">{errors.email.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#1F2937] mb-1.5">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-3.5 h-4 w-4 text-[#9CA3AF]" />
+                <Input
+                  {...register('password')}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  className="pl-11 pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-3.5 text-[#9CA3AF] hover:text-[#6B7280]"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {errors.password && <p className="text-sm text-[#C65B5B] mt-1">{errors.password.message}</p>}
+            </div>
+
+            <div className="flex justify-between items-center text-sm">
+              <Link to="/forgot-password" className="text-[#3A4B41] hover:text-[#4B5F54]">
+                Forgot password?
+              </Link>
+            </div>
+
+            <Button type="submit" disabled={isLoading} className="w-full h-11">
+              {isLoading ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </form>
+
+          <div className="mt-6 text-center text-sm text-[#6B7280]">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="text-[#3A4B41] hover:text-[#4B5F54] font-medium">
+              Create account
+            </Link>
+          </div>
+        </div>
+      </motion.div>
     </div>
-  );
+  )
 }
