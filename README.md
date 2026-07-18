@@ -1,504 +1,425 @@
-# AI Data Analytics Platform
+# AI Data Analyst - Enterprise AI Analytics Platform
 
-Multi-tenant AI-powered data analytics platform with role-based access control, email verification, and LLM-powered query capabilities.
+An enterprise-grade, AI-first analytics platform similar to **Microsoft Fabric Copilot**, **Power BI Copilot**, **Tableau Pulse**, **ChatGPT Data Analysis**, **Hex**, and **DataRobot**.
 
-## Tech Stack
+The AI is the central interface for interacting with datasets — not just a bolt-on feature.
 
-- **Framework:** FastAPI (async Python 3.12)
-- **Database:** PostgreSQL 16 + asyncpg (with Row-Level Security)
-- **ORM:** SQLAlchemy 2.0 (async)
-- **Auth:** JWT (access + refresh tokens), bcrypt, OIDC support, email verification
-- **AI:** OpenAI API (GPT-4, configurable) with structured output
-- **Cache:** Redis 7 (sessions, rate limiting)
-- **Queue:** Celery (optional async tasks)
-- **Storage:** S3-compatible (MinIO) or local filesystem
-- **Antivirus:** ClamAV (optional in dev, required in staging/prod)
-- **Email:** aiosmtplib (async SMTP)
-- **Container:** Docker + docker-compose
-- **Testing:** pytest, pytest-asyncio, httpx, aiosqlite, testcontainers (161 tests passing, 7 RLS skipped)
+## 🎯 Key Features
 
-## Architecture
+### AI-First Architecture
+- **AI Gateway** - Unified abstraction layer for all AI providers
+- **Automatic Provider Fallback** - Priority: Gemini → Groq → OpenRouter → OpenAI → Anthropic → DeepSeek
+- **6 Providers Supported** - OpenAI, Google Gemini, Groq, OpenRouter, Anthropic, DeepSeek
+- **OpenRouter Integration** - Access 100+ models (free & paid): `deepseek/deepseek-chat`, `google/gemini-2.5-flash`, `meta-llama/llama-3.3`, `qwen/qwen3`, `mistralai/mistral`
+- **Groq Support** - Ultra-fast inference: Llama 3.1, Qwen, DeepSeek, Gemma, Mixtral
+- **Gemini Default** - Flash/Pro with vision, embeddings, 1M+ context
+
+### Smart Dataset Analysis (Auto on Upload)
+- Dataset profile with quality score (completeness, consistency, accuracy)
+- Missing values, outliers, duplicates detection
+- Correlation matrix, distributions, statistics
+- Business summary + suggested charts/KPIs/dashboards
+
+### Data Quality Engine
+- Multi-dimensional scoring (completeness, consistency, accuracy, validity, uniqueness)
+- Column-level quality scores
+- Issue detection with severity and executable fix suggestions
+
+### Automatic Insights
+- Ranked insights: correlations, patterns, anomalies, quality issues, recommendations
+- Severity-based prioritization (high/medium/low)
+- Natural language explanations
+
+### AI Data Cleaning (One-Click)
+- Executable cleaning plans with rollback
+- Operations: deduplicate, fill missing, convert types, standardize formats, handle outliers, trim whitespace
+- Validation queries to verify results
+
+### Predictive Analytics
+- Time-series forecasting with confidence intervals
+- Multiple model support (Prophet, ARIMA, ETS, Linear)
+- Trend detection, seasonality analysis
+- Accuracy metrics (MAE, MAPE, RMSE)
+
+### Anomaly Detection
+- Point anomalies (statistical outliers)
+- Contextual anomalies (unusual in context)
+- Collective anomalies (sequence patterns)
+- Fraud indicators with investigation priority
+
+### Chart Recommendation Engine
+- AI-powered visualization suggestions with reasoning
+- Supports: Line, Bar, Area, Scatter, Pie, Donut, Heatmap, Treemap, Box Plot
+- Dashboard layout optimization
+- Accessibility-aware color schemes
+
+### Natural Language Query (NL → Safe SQL)
+- Convert questions to read-only SQL
+- **Security**: Blocks DELETE, UPDATE, DROP, ALTER, TRUNCATE, INSERT
+- Schema-aware generation with explanations
+- Row limits and timeout protection
+
+### Report Generator
+- **Executive Reports** - Strategic, C-suite focused
+- **Technical Reports** - Methodology, code, reproducibility
+- **Business Reports** - Operational KPIs, benchmarks
+- Export: PDF, Word, Markdown, HTML
+
+### Dashboard Generator
+- Auto-generate KPIs, charts, filters, tabs
+- Cross-filtering configuration
+- Role-based layouts (analyst, manager, executive)
+
+### Conversational AI with Memory
+- Per-dataset conversation history
+- Continue conversations across sessions
+- Token-aware context injection
+- Export/Import (JSON, Markdown)
+
+### Prompt Library (17 Categories, 20+ Templates)
+- Sales, Marketing, Finance, Customer, Risk, Inventory Analysis
+- Forecasting, Data Cleaning, Anomaly Detection
+- Chart Recommendation, Report Generation, Dashboard Generation
+- SQL Generation, Root Cause Analysis, KPI Generation
+
+## 🏗️ Architecture
 
 ```
-Browser (React/TS)
-   │  HTTPS only, strict CSP
-   ▼
-FastAPI (Uvicorn)
-   │
-   ├── Security Middleware Stack
-   │     ├── RequestContextMiddleware (X-Request-ID)
-   │     ├── CSRFMiddleware (double-submit pattern)
-   │     ├── BodySizeLimitMiddleware (10MB/100MB)
-   │     ├── CacheControlMiddleware (no-store)
-   │     ├── SecurityHeadersMiddleware (CSP, HSTS, X-Frame-Options)
-   │     ├── RateLimitMiddleware (slowapi, per-user + per-IP, stricter on auth)
-   │     └── TenantContextMiddleware (RLS context injection)
-   │
-   ├── File Ingestion Pipeline
-   │     → validate_extension → validate_magic_bytes → ClamAV scan → S3 storage
-   │
-   ├── LLM Orchestration Layer
-   │     → structured output (JSON schema) → QueryIntent
-   │     → intent_validator → query_executor → PII redaction
-   │
-   ├── Database Connector (external DBs)
-   │     → read-only connections → schema introspection → safe query execution
-   │
-   ├── Server-Side Chart Rendering
-   │     → matplotlib PNG generation → bar, histogram, scatter, heatmap, pie
-   │
-   └── Audit & Monitoring
-         → database-backed audit logs → structured JSON logging
-
-PostgreSQL (RLS policies)      Redis (sessions, rate limits)
-S3/MinIO (file storage)        ClamAV (antivirus scanning)
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLIENT APPLICATIONS                       │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         API GATEWAY (FastAPI)                    │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
+│  │   Auth     │ │ Datasets   │ │ Analytics  │ │ AI Analytics │  │
+│  │  /auth     │ │ /datasets  │ │/analytics  │ │    /ai/*     │  │
+│  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+┌───────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
+│ BUSINESS SERVICES │ │     AI GATEWAY      │ │   DATA SERVICES     │
+│  ┌─────────────┐  │ │  ┌───────────────┐  │ │  ┌───────────────┐  │
+│  │DatasetService│  │ │  │Provider Manager│  │ │  │AnalyticsService│ │
+│  │AuthService   │  │ │  │┌─────────────┐│  │ │  │VisualizationSvc│ │
+│  │TenantService │  │ │  ││OpenAI       ││  │ │  │ExportService   │ │
+│  │RoleService   │  │ │  ││Gemini       ││  │ │  │TransformService│ │
+│  └─────────────┘  │ │  ││Groq         ││  │ │  └───────────────┘  │
+│                   │ │  ││OpenRouter   ││  │ │                     │
+└───────────────────┘ │ │  ││Anthropic    ││  │ └─────────────────────┘
+                      │ │  ││DeepSeek     ││  │
+                      │ │  └─────────────┘│  │
+                      │ └─────────────────┘  │
+                      └──────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+┌───────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
+│   DATA LAYER      │ │  INFRASTRUCTURE     │ │  EXTERNAL AI APIs   │
+│  ┌─────────────┐  │ │  ┌───────────────┐  │ │  ┌───────────────┐  │
+│  │ PostgreSQL  │  │ │  │ Redis         │  │ │  │ OpenAI        │  │
+│  │ (AsyncPG)   │  │ │  │ (Celery/Rate) │  │ │  │ Google Gemini │  │
+│  │             │  │ │  └───────────────┘  │ │  │ Groq          │  │
+│  │ Models:     │  │ │                     │ │  │ OpenRouter    │  │
+│  │ - Users     │  │ │  ┌───────────────┐  │ │  │ Anthropic     │  │
+│  │ - Datasets  │  │ │  │ S3/MinIO      │  │ │  │ DeepSeek      │  │
+│  │ - Conversat.│  │ │  │ (Files)       │  │ │  └───────────────┘  │
+│  │ - Analysis  │  │ │  └───────────────┘  │ │                     │
+│  │ - Audit     │  │ │                     │ └─────────────────────┘
+│  └─────────────┘  │ └─────────────────────┘
+└───────────────────┘
 ```
 
-## Security Features
-
-### Authentication & Authorization
-- **JWT Tokens:** Short-lived access (15min) + refresh (7 days)
-- **OIDC Support:** Auth0, Keycloak, or any OIDC provider
-- **RBAC:** Admin, Analyst, Viewer roles with granular permissions
-- **Session Management:** Redis-backed with idle (30min) + absolute (8hr) timeouts
-- **Password Policy:** Min 8 chars, requires upper/lower/digit/special
-
-### Input Validation
-- **SQL Injection Prevention:** Pattern detection on all user inputs (16 endpoints)
-- **XSS Prevention:** HTML tag sanitization on description fields
-- **Pydantic Schemas:** Strict validation on all API endpoints
-- **File Upload:** Extension whitelist + magic byte verification
-- **Rate Limiting:** Redis-backed slowapi (per-user + per-IP, stricter on auth endpoints)
-- **CSV Injection Prevention:** Prefix dangerous leading characters (=, +, -, @) in exports
-
-### File Security
-- **Magic Bytes:** Verifies file content matches declared type (not just extension)
-- **ClamAV Scanning:** Malware detection on all uploads
-- **S3 Storage:** Files stored in tenant-scoped buckets outside web root
-- **Body Size Limits:** 10MB default, 100MB for uploads
-
-### Database Security
-- **Row-Level Security (RLS):** PostgreSQL policies enforce tenant isolation
-- **Parameterized Queries:** SQLAlchemy ORM prevents SQL injection
-- **Tenant Context:** Automatic RLS context injection per request
-
-### LLM Security
-- **Structured Output:** JSON schema constrains LLM response format
-- **Query Intent Validator:** Whitelist-based validation before execution
-- **PII Redaction:** Post-query redaction of sensitive columns
-- **Prompt Injection Prevention:** Data wrapped in `<data>` tags, 8 injection patterns detected
-- **Query Cost Limits:** Max 500k input rows, 10k output rows, 30s timeout
-
-### Database Connector
-- **Read-Only Connections:** External PostgreSQL databases via dedicated read-only role
-- **Schema Introspection:** Automatic table/column metadata discovery
-- **SQL Validation:** Dangerous patterns blocked (DROP, DELETE, INSERT, UPDATE, etc.)
-- **Query Execution:** Parameterized queries with timeout + row limits
-
-### Server-Side Chart Rendering
-- **Matplotlib Backend:** Charts rendered server-side as PNG images
-- **Supported Types:** Bar, histogram, scatter, heatmap, pie
-- **No Client-Side Processing:** Raw data never leaves the server
-
-### HTTP Security Headers
-- `Content-Security-Policy: default-src 'self'`
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY`
-- `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`
-- `Referrer-Policy: strict-origin-when-cross-origin`
-- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-
-### Audit & Monitoring
-- **Database Audit Logs:** All CRUD + auth events persisted to PostgreSQL (async)
-- **Request Tracking:** X-Request-ID on every request
-- **Cache Control:** no-store, no-cache headers on all API responses
-- **Structured Logging:** JSON logs with PII redaction
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
+- Python 3.11+
+- PostgreSQL 15+
+- Redis 7+
+- At least one AI provider API key
 
-- Python 3.12+
-- PostgreSQL 16 (or Docker)
-- Redis 7 (or Docker)
-- Docker + docker-compose (recommended)
-
-### Quick Start (Docker)
+### Docker Compose (Recommended)
 
 ```bash
-# clone and enter
-git clone <repo>
-cd ai-data-analytics
+# Clone
+git clone <repository>
+cd AI-DATA-ANALISTY
 
-# copy env and configure
-cp .env.example .env
-# edit .env — set SECRET_KEY, DATABASE_URL, LLM_API_KEY, etc.
+# Configure
+cp backend/.env.example backend/.env
+# Edit backend/.env - add your AI provider keys
 
-# start all services (PostgreSQL, Redis, MinIO, ClamAV, API)
-docker compose -f docker/docker-compose.yml up -d
+# Start
+docker-compose -f docker/docker-compose.yml up -d
 
-# API available at http://localhost:8000
-# API docs at http://localhost:8000/api/docs
-# MinIO console at http://localhost:9001
+# API at http://localhost:8000
+# Docs at http://localhost:8000/api/docs
 ```
 
 ### Local Development
 
 ```bash
-# Backend
 cd backend
-python -m venv .venv
-source .venv/bin/activate   # Linux/Mac
-.venv\Scripts\activate      # Windows
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example ../.env  # edit as needed
+
+# Start dependencies
+docker-compose up -d postgres redis minio
+
+# Migrate
 alembic upgrade head
+
+# Run API
 uvicorn app.main:app --reload --port 8000
 
-# Frontend (new terminal)
-cd frontend
-npm install
-npm run dev  # available at http://localhost:3000, proxies /api to :8000
+# Run Celery (separate terminals)
+celery -A app.core.celery_app worker --loglevel=info
+celery -A app.core.celery_app beat --loglevel=info
 ```
 
-## Project Structure
+## 🔧 Configuration
 
-```
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/              # Route handlers
-│   │   │   ├── auth.py          # Register, login, verify, reset, profile
-│   │   │   ├── tenants.py       # CRUD tenant, invite, accept, members
-│   │   │   ├── roles.py         # CRUD roles, assign to users
-│   │   │   ├── datasets.py      # Upload, list, get
-│   │   │   ├── llm.py           # Query LLM, history
-│   │   │   ├── analytics.py     # Profiling, correlations, AI insights
-│   │   │   ├── transforms.py    # Data cleaning/wrangling pipeline
-│   │   │   ├── visualizations.py # Chart-ready data endpoints
-│   │   │   ├── exports.py       # CSV/Excel download endpoints
-│   │   │   ├── admin.py         # Admin stats, user list
-│   │   │   └── health.py        # Health check
-│   │   ├── core/
-│   │   │   ├── config.py        # Settings (pydantic-settings)
-│   │   │   ├── database.py      # Async SQLAlchemy engine
-│   │   │   ├── security/
-│   │   │   │   ├── auth.py      # JWT, bcrypt, OIDC
-│   │   │   │   ├── csrf.py      # CSRF double-submit
-│   │   │   │   ├── middleware.py # Security middleware stack
-│   │   │   │   ├── scanner.py   # ClamAV integration
-│   │   │   │   ├── tenant_context.py # RLS context injection
-│   │   │   │   ├── validators.py # Input validation
-│   │   │   │   └── rate_limit.py # Redis rate limiting
-│   │   │   └── storage/
-│   │   │       └── s3.py        # S3/MinIO storage service
-│   │   ├── models/              # SQLAlchemy ORM models
-│   │   ├── schemas/             # Pydantic request/response schemas
-│   │   │   └── query_intent.py  # LLM query intent models
-│   │   └── services/            # Business logic layer
-│   │       ├── query_intent_validator.py
-│   │       ├── query_executor.py
-│   │       ├── post_query_redactor.py
-│   │       ├── email_service.py
-│   │       └── ...
-│   ├── alembic/                 # DB migrations
-│   │   └── versions/
-│   │       └── add_rls_policies.py
-│   └── tests/                   # pytest test suite (168 tests)
-├── docker/
-│   ├── Dockerfile
-│   └── docker-compose.yml       # PostgreSQL, Redis, MinIO, ClamAV
-├── docs/security/
-│   ├── threat-model.md
-│   ├── owasp-review.md
-│   └── log-redaction-alerting.md
-├── .env.example
-├── pyproject.toml
-├── IMPLEMENTATION_PLAN.md
-└── .pre-commit-config.yaml
-├── frontend/                    # React + TypeScript + Vite
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/          # Navbar, ProtectedRoute
-│   │   │   └── ui/              # shadcn/ui components
-│   │   ├── lib/
-│   │   │   ├── api.ts           # Axios client with auth interceptors
-│   │   │   └── utils.ts         # cn() utility
-│   │   ├── pages/               # Route pages
-│   │   │   ├── LoginPage.tsx
-│   │   │   ├── RegisterPage.tsx
-│   │   │   ├── ForgotPasswordPage.tsx
-│   │   │   ├── DashboardPage.tsx
-│   │   │   ├── DatasetsPage.tsx
-│   │   │   ├── AnalyticsPage.tsx
-│   │   │   ├── VisualizationsPage.tsx
-│   │   │   ├── TransformsPage.tsx
-│   │   │   ├── LLMPage.tsx
-│   │   │   └── AdminPage.tsx
-│   │   ├── stores/              # Zustand state management
-│   │   │   ├── authStore.ts
-│   │   │   └── datasetStore.ts
-│   │   └── types/
-│   │       └── api.ts           # TypeScript interfaces
-│   ├── package.json
-│   └── vite.config.ts
-```
-
-## Environment Variables
+### Required Environment Variables
 
 ```bash
-# Core
-SECRET_KEY=your-secret-key
+# AI Providers (at least one required)
+AI_PROVIDER=gemini
+AI_PROVIDER_PRIORITY=gemini,groq,openrouter,openai,anthropic,deepseek
+
+GEMINI_API_KEY=your-gemini-key          # Google AI Studio
+GROQ_API_KEY=your-groq-key              # Groq Cloud
+OPENROUTER_API_KEY=your-openrouter-key  # OpenRouter
+OPENAI_API_KEY=your-openai-key          # OpenAI
+ANTHROPIC_API_KEY=your-anthropic-key    # Anthropic
+DEEPSEEK_API_KEY=your-deepseek-key      # DeepSeek
+
+# Database
+DATABASE_URL=postgresql+asyncpg://postgres:pass@localhost:5432/ai_data
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# Security
+SECRET_KEY=your-32-char-secret-key
 ENVIRONMENT=development
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/ai_data
-
-# Auth
-AUTH_MODE=local  # or "oidc"
-OIDC_ISSUER_URL=
-OIDC_CLIENT_ID=
-OIDC_CLIENT_SECRET=
-
-# LLM
-LLM_PROVIDER=openai
-LLM_API_KEY=sk-...
-LLM_MODEL=gpt-4
-
-# Storage
-STORAGE_BACKEND=local  # or "s3"
-S3_ENDPOINT=localhost:9000
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
-S3_BUCKET_PREFIX=ai-data-analyst
-
-# Antivirus
-CLAMAV_ENABLED=false  # true in staging/prod
-CLAMAV_HOST=localhost
-CLAMAV_PORT=3310
-
-# Email (optional)
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASSWORD=
 ```
 
-## API Endpoints
+### Provider Models
 
-### Auth (`/api/v1/auth`)
+| Provider | Default | Available Models |
+|----------|---------|------------------|
+| **Gemini** | gemini-1.5-flash | gemini-1.5-pro, gemini-1.5-flash, gemini-1.0-pro |
+| **Groq** | llama-3.1-70b-versatile | llama-3.1-8b, mixtral-8x7b, gemma2-9b, qwen2.5-72b, deepseek-r1-distill-llama-70b |
+| **OpenRouter** | google/gemini-2.5-flash | 100+ models (free & paid) |
+| **OpenAI** | gpt-4o | gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo |
+| **Anthropic** | claude-3-5-sonnet | claude-3-5-sonnet, claude-3-opus, claude-3-haiku |
+| **DeepSeek** | deepseek-chat | deepseek-chat, deepseek-coder |
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/register` | Create account (password strength enforced) |
-| POST | `/login` | Get JWT access + refresh tokens |
-| POST | `/refresh` | Rotate tokens |
-| POST | `/logout` | Invalidate session |
-| GET | `/me` | Get current user profile |
-| PATCH | `/me` | Update name fields |
-| POST | `/change-password` | Change password |
-| POST | `/verify-email` | Verify email via token |
-| POST | `/resend-verification` | Resend verification link |
-| POST | `/forgot-password` | Request password reset |
-| POST | `/reset-password` | Reset password via token |
-| GET | `/oidc/config` | Get OIDC provider config |
-| POST | `/oidc/login` | OIDC login |
+## 📚 API Endpoints
 
-### Tenants (`/api/v1/tenants`)
+### AI Analytics (`/api/v1/ai/`)
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `` | Create tenant (creator becomes admin) |
-| GET | `/members` | List tenant members |
-| DELETE | `/members/{id}` | Remove member from tenant |
-| POST | `/invitations` | Invite user to tenant |
-| GET | `/invitations` | List pending invitations |
-| DELETE | `/invitations/{id}` | Revoke invitation |
-| POST | `/accept-invitation` | Accept invite and create account |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/profile/{dataset_id}` | Smart dataset profiling (auto on upload) |
+| `GET` | `/quality/{dataset_id}` | Data quality assessment |
+| `GET` | `/insights/{dataset_id}` | Automatic ranked insights |
+| `GET` | `/cleaning/plan/{dataset_id}` | Get executable cleaning plan |
+| `POST` | `/cleaning/execute/{dataset_id}` | Execute cleaning plan (one-click) |
+| `POST` | `/forecast/{dataset_id}` | Time-series forecasting |
+| `GET` | `/anomalies/{dataset_id}` | Anomaly & fraud detection |
+| `GET` | `/charts/recommend/{dataset_id}` | AI chart recommendations |
+| `POST` | `/nlq/{dataset_id}` | Natural language → Safe SQL |
+| `POST` | `/sql/explain` | Explain SQL in plain language |
+| `POST` | `/reports/{dataset_id}` | Generate report (executive/technical/business) |
+| `POST` | `/dashboard/{dataset_id}` | Generate dashboard specification |
+| `POST` | `/chat/{dataset_id}` | Conversational AI with memory |
+| `GET` | `/chat/history/{conversation_id}` | Get conversation history |
+| `GET` | `/chat/conversations/{dataset_id}` | List dataset conversations |
+| `GET` | `/prompts` | List prompt templates |
+| `GET` | `/prompts/{prompt_id}` | Get prompt details |
+| `GET` | `/providers/status` | Provider health & status |
+| `POST` | `/providers/switch` | Manually switch provider |
 
-### Roles (`/api/v1/roles`)
+### Traditional Endpoints
+- `/api/v1/auth/*` - Authentication (register, login, OIDC, password reset)
+- `/api/v1/datasets/*` - Dataset upload, list, download
+- `/api/v1/analytics/*` - Profiling, correlations, legacy insights
+- `/api/v1/visualizations/*` - Chart data (bar, line, scatter, heatmap, etc.)
+- `/api/v1/exports/*` - CSV/Excel exports
+- `/api/v1/transforms/*` - Data cleaning pipeline
+- `/api/v1/llm/*` - Legacy LLM endpoints (now use AI Gateway)
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `` | List all roles |
-| POST | `` | Create custom role (admin only) |
-| GET | `/{id}` | Get role details |
-| PATCH | `/{id}` | Update role (admin only) |
-| POST | `/{role_id}/assign/{user_id}` | Assign role to user (admin only) |
+## 💡 Usage Examples
 
-### Datasets (`/api/v1/datasets`)
+### Smart Profiling (Auto on Upload)
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/profile/{dataset_id} \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"force": true}'
+```
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/upload` | Upload dataset file (ClamAV scanned) |
-| GET | `/` | List tenant datasets |
-| GET | `/{id}` | Get dataset details |
+### Conversational Analysis
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/chat/{dataset_id} \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"message": "Why did revenue drop in March?"}'
+```
 
-### LLM (`/api/v1/llm`)
+### Natural Language to SQL
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/nlq/{dataset_id} \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"question": "Show me top 10 products by revenue last quarter"}'
+```
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/query` | Send prompt to LLM |
-| GET | `/history` | View query history |
+### Forecasting
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/forecast/{dataset_id} \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"date_column": "date", "value_column": "sales", "periods": 12}'
+```
 
-### Analytics (`/api/v1/analytics`)
+### Generate Executive Report
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/reports/{dataset_id} \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"report_type": "executive", "time_period": "Q1 2024"}'
+```
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/profile/{dataset_id}` | Run column-level profiling |
-| GET | `/profile/{dataset_id}` | Get existing profile results |
-| POST | `/correlate/{dataset_id}` | Compute Pearson correlation matrix |
-| POST | `/analyze/{dataset_id}` | Run comprehensive analysis |
-| GET | `/report/{dataset_id}` | Get latest analysis report |
-| POST | `/insights/{dataset_id}` | Generate AI-powered insights |
-| GET | `/insights/{dataset_id}` | Get existing AI insights |
-| GET | `/runs` | List analysis runs |
-| GET | `/runs/{run_id}` | Get specific analysis run |
+### Python SDK Example
+```python
+import httpx
 
-### Visualizations (`/api/v1/visualizations`)
+client = httpx.AsyncClient(base_url="http://localhost:8000/api/v1")
+client.headers["Authorization"] = f"Bearer {token}"
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/bar` | Bar chart data |
-| POST | `/histogram` | Histogram data |
-| POST | `/scatter` | Scatter plot data |
-| POST | `/line` | Line chart data |
-| POST | `/heatmap` | Correlation heatmap |
-| POST | `/pie` | Pie chart data |
-| POST | `/box` | Box plot data |
-| POST | `/grouped-bar` | Grouped bar chart data |
-| GET | `/preview/{dataset_id}` | Auto-detect best charts |
+# Upload dataset
+with open("sales.csv", "rb") as f:
+    dataset_id = (await client.post("/datasets/upload", files={"file": f})).json()["id"]
 
-### Server-Side Charts (`/api/v1/charts`)
+# Smart profile (auto-generated on upload, or force refresh)
+profile = await client.post(f"/ai/profile/{dataset_id}", json={"force": True})
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/png/bar/{dataset_id}` | Render bar chart as PNG |
-| GET | `/png/histogram/{dataset_id}` | Render histogram as PNG |
-| GET | `/png/scatter/{dataset_id}` | Render scatter plot as PNG |
-| GET | `/png/heatmap/{dataset_id}` | Render heatmap as PNG |
-| GET | `/png/pie/{dataset_id}` | Render pie chart as PNG |
+# Chat with data
+chat = await client.post(f"/ai/chat/{dataset_id}", json={
+    "message": "What are the key drivers of revenue?"
+})
 
-### Database Connections (`/api/v1/db-connections`)
+# Forecast
+forecast = await client.post(f"/ai/forecast/{dataset_id}", json={
+    "date_column": "date", "value_column": "revenue", "periods": 6
+})
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/` | List external DB connections |
-| POST | `/` | Connect new read-only database |
-| GET | `/{connection_id}/schema` | Introspect schema (tables + columns) |
-| POST | `/{connection_id}/query` | Execute read-only query |
+# Generate dashboard
+dashboard = await client.post(f"/ai/dashboard/{dataset_id}", json={
+    "business_context": "Sales performance tracking",
+    "key_questions": ["What drives revenue?", "Which regions underperform?"]
+})
+```
 
-### Transforms (`/api/v1/transforms`)
+## 🔒 Security
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/impute` | Impute missing values |
-| POST | `/remove-outliers` | Remove outliers (IQR/Z-score) |
-| POST | `/cast` | Cast column type |
-| POST | `/filter` | Filter rows |
-| POST | `/rename` | Rename column |
-| POST | `/drop` | Drop columns |
-| POST | `/normalize` | Normalize column |
-| POST | `/encode` | One-hot encode |
-| POST | `/apply` | Apply all transforms |
-| GET | `/{dataset_id}` | List transforms |
-| DELETE | `/{transform_id}` | Delete transform |
+- **Multi-tenant Isolation** - Row-level security via PostgreSQL RLS
+- **JWT Authentication** - Access (15min) + Refresh (7 days) tokens
+- **OIDC Support** - Enterprise SSO (Auth0, Keycloak, etc.)
+- **Role-Based Access** - Admin, Analyst, Viewer + custom roles
+- **Prompt Injection Protection** - 8 detection patterns + sanitization
+- **Safe SQL Execution** - Allow-list validation (SELECT only)
+- **Rate Limiting** - Per-user, per-tenant, per-endpoint
+- **Audit Logging** - All AI queries logged with user/tenant context
+- **CSV Injection Prevention** - Formula prefix sanitization in exports
 
-### Exports (`/api/v1/exports`)
+## 📖 Documentation
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/profile/{id}` | Export profile as CSV/Excel |
-| GET | `/correlations/{id}` | Export correlations |
-| GET | `/report/{id}` | Export analysis report |
-| GET | `/insights/{id}` | Export AI insights |
-| GET | `/dataset/{id}` | Download raw dataset |
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | System architecture, data flows, components |
+| [API Reference](docs/API.md) | Complete API documentation with examples |
+| [Deployment](docs/DEPLOYMENT.md) | Docker, Kubernetes, scaling, monitoring |
+| [Developer Guide](docs/DEVELOPER_GUIDE.md) | Local setup, extending, testing, contributing |
 
-### Admin (`/api/v1/admin`)
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/users` | List all users (superuser) |
-| GET | `/stats` | Platform stats |
-
-## Frontend
-
-- **Framework:** React 19 + TypeScript + Vite
-- **UI:** Tailwind CSS v4 + shadcn/ui components
-- **State:** Zustand (auth, datasets)
-- **Routing:** React Router v7
-- **HTTP:** Axios with JWT auto-refresh interceptors
-- **Dev proxy:** `/api` requests proxied to `http://localhost:8000`
-
-### Pages
-
-| Route | Page | Description |
-|---|---|---|
-| `/login` | LoginPage | Email + password login |
-| `/register` | RegisterPage | New account registration |
-| `/forgot-password` | ForgotPasswordPage | Password reset request |
-| `/` | DashboardPage | Overview with stats + quick actions |
-| `/datasets` | DatasetsPage | Upload + manage datasets (drag & drop, progress bar) |
-| `/analytics` | AnalyticsPage | Run profiling, correlation, full analysis |
-| `/visualizations` | VisualizationsPage | Generate bar, histogram, scatter, pie, heatmap charts |
-| `/transforms` | TransformsPage | Queue and apply data cleaning pipeline |
-| `/llm` | LLMPage | Natural language queries with history |
-| `/admin` | AdminPage | User management + platform stats (admin only) |
-
-## Testing
+## 🧪 Testing
 
 ```bash
 cd backend
 
-# run all tests (168 tests)
+# All tests
 pytest tests/ -v
 
-# run with coverage
-pytest tests/ --cov=app --cov-report=term-missing -v
+# AI Gateway tests
+pytest tests/ai_gateway/ -v
 
-# run specific test file
-pytest tests/test_auth.py -v
+# Coverage
+pytest tests/ --cov=app --cov-report=html
 ```
 
-Tests use an in-memory SQLite database via `aiosqlite` — no external DB required.
+### Test Structure
+```
+tests/ai_gateway/
+├── test_providers.py       # Provider initialization, fallback
+├── test_analytics_engine.py # Smart profiling, insights, forecasting
+└── test_prompts.py         # Prompt library, rendering, categories
+```
 
-### RLS Integration Tests (Docker required)
+## 🛠️ Extending the Platform
 
+### Add New AI Provider
+1. Implement `AIProvider` interface in `app/services/ai_gateway/providers/`
+2. Register in `PROVIDER_CLASSES` and `ProviderManager`
+3. Add API key to config
+
+### Add Analytics Feature
+1. Add method to `AIAnalyticsEngine`
+2. Create prompt template in `PromptLibrary`
+3. Add API endpoint in `ai_analytics.py`
+4. Register audit logging
+
+### Add Prompt Template
+```python
+prompts.register_prompt_template(
+    "my_analysis",
+    "Analyze {dataset} for {metric}: {question}"
+)
+```
+
+## 📦 Deployment
+
+### Docker Compose (Production)
 ```bash
-# run PostgreSQL RLS tests (7 tests, skip automatically without Docker)
-pytest tests/test_pg_rls.py -v
-
-# exclude RLS tests
-pytest tests/ -v --ignore=tests/test_pg_rls.py
+docker-compose -f docker/docker-compose.prod.yml up -d
 ```
 
-## Security
-
-- **Password policy:** min 8 chars, requires upper, lower, digit, special
-- **Email verification:** required before LLM queries
-- **Rate limiting:** per-endpoint (login: 5/min, LLM: 30/min, general: 100/hr)
-- **JWT expiry:** access 15min, refresh 7 days
-- **HTTP security headers:** CSP, HSTS, X-Frame-Options, nosniff, etc.
-- **CSRF:** Double-submit cookie pattern
-- **Input validation:** SQL injection detection, HTML sanitization
-- **File upload:** Extension whitelist + magic bytes + ClamAV scanning
-- **Storage:** S3/MinIO with tenant-scoped buckets
-- **Database:** PostgreSQL RLS for tenant isolation
-- **Audit logging:** Database-backed audit trail for all events
-- **PII redaction:** Post-query redaction of sensitive columns
-
-See `docs/security/` for:
-- OWASP Top 10 review
-- Threat model
-- Log redaction and alerting strategy
-
-## Deployment
-
+### Kubernetes
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build
+kubectl apply -f k8s/
+# Includes: Deployment, Service, Ingress, HPA, ConfigMap, Secrets
 ```
 
-Environment variables are loaded from `.env` (see `.env.example`). For production:
-- Set `ENVIRONMENT=production`
-- Use a strong `SECRET_KEY`
-- Set `CLAMAV_ENABLED=true`
-- Configure `STORAGE_BACKEND=s3` with MinIO/AWS S3
-- Set `CORS_ORIGINS` to your frontend domain
-- Configure SMTP for transactional emails
+### Monitoring
+- Prometheus metrics via `/metrics`
+- Grafana dashboards for API, AI providers, business metrics
+- Health checks: `/api/v1/health`, `/api/v1/ai/providers/status`
+
+## 🤝 Contributing
+
+1. Fork & create feature branch
+2. Run linting: `ruff check backend/` & `black backend/`
+3. Run tests: `pytest tests/`
+4. Update documentation
+5. Submit PR
+
+## 📄 License
+
+MIT License - see LICENSE file
+
+---
+
+**Built with** FastAPI, SQLAlchemy, PostgreSQL, Redis, Celery, and ❤️
+
+**AI Providers**: Google Gemini, Groq, OpenRouter, OpenAI, Anthropic, DeepSeek

@@ -1,5 +1,6 @@
 from app.models.analysis import AnalysisResult, AnalysisRun, DataProfile
 from app.models.audit_log import AuditLog
+from app.models.conversation import ConversationModel, ConversationMessageModel
 from app.models.dataset import Dataset
 from app.models.invitation import Invitation
 from app.models.llm import LLMQuery
@@ -20,4 +21,6 @@ __all__ = [
     "AnalysisResult",
     "DataProfile",
     "DataTransform",
+    "ConversationModel",
+    "ConversationMessageModel",
 ]

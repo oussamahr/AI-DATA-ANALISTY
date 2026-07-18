@@ -1,8 +1,15 @@
+"""
+LLM Service - Updated to use AI Gateway for provider abstraction.
+
+Maintains backward compatibility while leveraging the new AI Gateway architecture.
+"""
+
 import json
 import re
 import time
 import uuid
 import xml.sax.saxutils as saxutils
+from typing import Optional
 
 from fastapi import Depends
 from pydantic import BaseModel
@@ -14,6 +21,13 @@ from app.core.database import get_session
 from app.core.security.exceptions import AppException
 from app.models.llm import LLMQuery
 from app.models.user import User
+from app.services.ai_gateway import (
+    AIGateway,
+    ChatMessage,
+    GenerationConfig,
+    MessageRole,
+    get_ai_gateway,
+)
 
 SYSTEM_PROMPT = (
     "You are an AI data analyst. You must ONLY answer questions about the provided data.\n"
@@ -39,8 +53,15 @@ INJECTION_PATTERNS = [
 
 
 class LLMService:
-    def __init__(self, db: AsyncSession = Depends(get_session)):
+    """LLM Service using AI Gateway for provider-agnostic AI operations."""
+
+    def __init__(
+        self,
+        db: AsyncSession = Depends(get_session),
+        gateway: AIGateway = Depends(get_ai_gateway),
+    ):
         self.db = db
+        self.gateway = gateway
 
     def _sanitize_prompt(self, prompt: str) -> str:
         sanitized = saxutils.escape(prompt, {'"': "&quot;", "'": "&apos;"})
@@ -57,15 +78,17 @@ class LLMService:
         self,
         prompt: str,
         dataset_context: str | None = None,
-    ) -> list[dict]:
-        messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    ) -> list[ChatMessage]:
+        messages: list[ChatMessage] = [ChatMessage(role=MessageRole.SYSTEM, content=SYSTEM_PROMPT)]
 
         if dataset_context:
             safe_data = self._sanitize_prompt(dataset_context)
-            messages.append({
-                "role": "system",
-                "content": f"<data>\n{safe_data}\n</data>",
-            })
+            messages.append(
+                ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=f"<data>\n{safe_data}\n</data>",
+                )
+            )
 
         safe_prompt = self._sanitize_prompt(prompt)
         injection = self._detect_injection(prompt)
@@ -75,7 +98,7 @@ class LLMService:
                 f"User message: {safe_prompt}"
             )
 
-        messages.append({"role": "user", "content": safe_prompt})
+        messages.append(ChatMessage(role=MessageRole.USER, content=safe_prompt))
         return messages
 
     async def query(
@@ -84,28 +107,36 @@ class LLMService:
         user: User,
         tenant_id: str | None = None,
         dataset_context: str | None = None,
+        provider_type: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> LLMQuery:
+        """Query the AI using the gateway with automatic provider fallback."""
         start = time.time()
 
         try:
-            import openai
-
-            client = openai.AsyncOpenAI(
-                api_key=settings.LLM_API_KEY,
-                base_url=settings.LLM_BASE_URL or None,
-            )
-
             messages = self._build_messages(prompt, dataset_context)
 
-            response = await client.chat.completions.create(
-                model=settings.LLM_MODEL,
+            # Parse provider type if provided
+            provider = None
+            if provider_type:
+                from app.services.ai_gateway.providers.base import ProviderType
+                try:
+                    provider = ProviderType(provider_type)
+                except ValueError:
+                    pass
+
+            response = await self.gateway.chat(
                 messages=messages,
-                max_tokens=settings.LLM_MAX_TOKENS,
-                temperature=settings.LLM_TEMPERATURE,
+                config=GenerationConfig(
+                    max_tokens=settings.LLM_MAX_TOKENS,
+                    temperature=settings.LLM_TEMPERATURE,
+                ),
+                provider_type=provider,
+                model=model,
             )
 
             duration = int((time.time() - start) * 1000)
-            result = response.choices[0].message.content or ""
+            result = response.content or ""
 
             query_record = LLMQuery(
                 id=uuid.uuid4(),
@@ -113,9 +144,9 @@ class LLMService:
                 tenant_id=tenant_id,
                 prompt=prompt,
                 response=result,
-                model=settings.LLM_MODEL,
-                tokens_prompt=response.usage.prompt_tokens if response.usage else 0,
-                tokens_completion=response.usage.completion_tokens if response.usage else 0,
+                model=response.model,
+                tokens_prompt=response.usage.get("prompt_tokens", 0),
+                tokens_completion=response.usage.get("completion_tokens", 0),
                 duration_ms=duration,
                 success=True,
             )
@@ -145,39 +176,36 @@ class LLMService:
         user: User,
         tenant_id: str | None = None,
         dataset_context: str | None = None,
+        provider_type: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> tuple[BaseModel, LLMQuery]:
+        """Query with structured output using JSON schema."""
         start = time.time()
 
         try:
-            import openai
-
-            client = openai.AsyncOpenAI(
-                api_key=settings.LLM_API_KEY,
-                base_url=settings.LLM_BASE_URL or None,
-            )
-
             messages = self._build_messages(prompt, dataset_context)
 
-            json_schema = response_model.model_json_schema()
-            response = await client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=messages,
-                max_tokens=settings.LLM_MAX_TOKENS,
-                temperature=0,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": response_model.__name__,
-                        "strict": True,
-                        "schema": json_schema,
-                    },
-                },
+            provider = None
+            if provider_type:
+                from app.services.ai_gateway.providers.base import ProviderType
+                try:
+                    provider = ProviderType(provider_type)
+                except ValueError:
+                    pass
+
+            parsed, response = await self.gateway.structured_generate(
+                prompt=prompt,
+                response_model=response_model,
+                config=GenerationConfig(
+                    max_tokens=settings.LLM_MAX_TOKENS,
+                    temperature=0,
+                ),
+                provider_type=provider,
+                model=model,
             )
 
             duration = int((time.time() - start) * 1000)
-            result_text = response.choices[0].message.content or "{}"
-            
-            parsed = response_model.model_validate_json(result_text)
+            result_text = response.content or "{}"
 
             query_record = LLMQuery(
                 id=uuid.uuid4(),
@@ -185,9 +213,9 @@ class LLMService:
                 tenant_id=tenant_id,
                 prompt=prompt,
                 response=result_text,
-                model=settings.LLM_MODEL,
-                tokens_prompt=response.usage.prompt_tokens if response.usage else 0,
-                tokens_completion=response.usage.completion_tokens if response.usage else 0,
+                model=response.model,
+                tokens_prompt=response.usage.get("prompt_tokens", 0),
+                tokens_completion=response.usage.get("completion_tokens", 0),
                 duration_ms=duration,
                 success=True,
             )
@@ -224,3 +252,21 @@ class LLMService:
             .limit(limit)
         )
         return list(result.scalars().all())
+
+    async def get_available_providers(self) -> list[str]:
+        """Get list of available AI providers."""
+        return [p.value for p in self.gateway.get_available_providers()]
+
+    async def get_healthy_providers(self) -> list[str]:
+        """Get list of healthy AI providers."""
+        return [p.value for p in self.gateway.get_healthy_providers()]
+
+    async def health_check(self) -> dict[str, bool]:
+        """Check health of all providers."""
+        health = await self.gateway.health_check()
+        return {k.value: v for k, v in health.items()}
+
+    def get_current_provider(self) -> Optional[str]:
+        """Get currently active provider."""
+        provider = self.gateway.get_current_provider()
+        return provider.value if provider else None

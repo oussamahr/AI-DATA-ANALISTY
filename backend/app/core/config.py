@@ -46,6 +46,57 @@ class Settings(BaseSettings):
     RATE_LIMIT_USER: str = "100/hour"
     RATE_LIMIT_TENANT: str = "1000/hour"
 
+    # AI Provider Configuration
+    AI_PROVIDER: str = "gemini"
+    AI_PROVIDER_PRIORITY: str = "gemini,groq,openrouter,openai,anthropic,deepseek"
+    AI_AUTO_FALLBACK: bool = True
+    AI_AUTO_SELECT: bool = True
+    AI_MEMORY_ENABLED: bool = True
+    AI_STREAMING: bool = True
+    AI_MAX_RETRIES: int = 2
+    AI_MAX_TOKENS: int = 4096
+    AI_TEMPERATURE: float = 0.3
+    AI_TIMEOUT: int = 60
+
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = ""
+    OPENAI_MODEL: str = "gpt-4o"
+
+    # Google Gemini
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+
+    # Groq
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.1-70b-versatile"
+
+    # OpenRouter
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_MODEL: str = "google/gemini-2.5-flash"
+
+    # Anthropic
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-3-5-sonnet-20241022"
+
+    # DeepSeek
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+
+    # Embeddings
+    EMBEDDING_PROVIDER: str = "gemini"
+    EMBEDDING_MODEL: str = "text-embedding-004"
+
+    # AI Logging
+    AI_LOG_REQUESTS: bool = True
+    AI_LOG_RESPONSES: bool = False
+    AI_LOG_ERRORS: bool = True
+
+    # AI Cache
+    AI_CACHE_ENABLED: bool = True
+    AI_CACHE_TTL: int = 3600
+
+    # Legacy LLM settings (deprecated, kept for backward compatibility)
     LLM_PROVIDER: str = "openai"
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = ""
