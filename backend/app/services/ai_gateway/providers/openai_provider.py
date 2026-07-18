@@ -126,20 +126,23 @@ class OpenAIProvider(AIProvider):
         openai_messages = self._convert_messages(messages)
         openai_tools = self._convert_tools(tools)
 
-        response = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=openai_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            response_format=config.response_format,
-            seed=config.seed,
-            tools=openai_tools,
-            tool_choice="auto" if openai_tools else None,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": openai_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+            "presence_penalty": config.presence_penalty,
+            "frequency_penalty": config.frequency_penalty,
+            "response_format": config.response_format,
+            "seed": config.seed,
+        }
+        if openai_tools:
+            kwargs["tools"] = openai_tools
+            kwargs["tool_choice"] = "auto"
+
+        response = await self._client.chat.completions.create(**kwargs)
 
         choice = response.choices[0]
         tool_calls = []
@@ -180,21 +183,24 @@ class OpenAIProvider(AIProvider):
         openai_messages = self._convert_messages(messages)
         openai_tools = self._convert_tools(tools)
 
-        stream = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=openai_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            response_format=config.response_format,
-            seed=config.seed,
-            tools=openai_tools,
-            tool_choice="auto" if openai_tools else None,
-            stream=True,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": openai_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+            "presence_penalty": config.presence_penalty,
+            "frequency_penalty": config.frequency_penalty,
+            "response_format": config.response_format,
+            "seed": config.seed,
+            "stream": True,
+        }
+        if openai_tools:
+            kwargs["tools"] = openai_tools
+            kwargs["tool_choice"] = "auto"
+
+        stream = await self._client.chat.completions.create(**kwargs)
 
         accumulated_content = ""
         tool_calls_buffer: dict[int, dict] = {}

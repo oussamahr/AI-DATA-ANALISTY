@@ -16,6 +16,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   model?: string;
+  provider?: string;
 }
 
 export function ChatPage() {
@@ -23,11 +24,18 @@ export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [prompt, setPrompt] = useState("");
   const [datasetId, setDatasetId] = useState<string>("none");
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const sendMessage = async () => {
     if (!prompt.trim() || loading) return;
+    
+    if (datasetId === "none") {
+      setError("Please select a dataset to chat about");
+      return;
+    }
+    
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: prompt.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setPrompt("");
@@ -35,14 +43,24 @@ export function ChatPage() {
     setError(null);
 
     try {
-      const response = await api.llmQuery(userMsg.content, datasetId === "none" ? undefined : datasetId);
+      const response = await api.chatAboutDataset(
+        datasetId,
+        userMsg.content,
+        conversationId || undefined
+      );
+      
+      if (!conversationId) {
+        setConversationId(response.conversation_id);
+      }
+      
       setMessages((prev) => [
         ...prev,
         {
-          id: response.id,
+          id: response.conversation_id,
           role: "assistant",
           content: response.response,
           model: response.model,
+          provider: response.provider,
         },
       ]);
     } catch (err) {
@@ -52,11 +70,23 @@ export function ChatPage() {
     }
   };
 
+  const clearConversation = () => {
+    setMessages([]);
+    setConversationId(null);
+  };
+
   return (
     <div className="page-container flex h-[calc(100vh-4rem)] flex-col gap-4">
-      <div>
-        <h1 className="page-title">AI Chat</h1>
-        <p className="page-subtitle">Ask questions about your data in natural language</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-title">AI Chat</h1>
+          <p className="page-subtitle">Ask questions about your data in natural language</p>
+        </div>
+        {messages.length > 0 && (
+          <Button variant="outline" size="sm" onClick={clearConversation}>
+            New Conversation
+          </Button>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
@@ -70,8 +100,16 @@ export function ChatPage() {
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-foreground">How can I help?</h3>
                   <p className="mt-2 max-w-sm text-sm text-muted">
-                    Ask about trends, anomalies, or insights in your datasets.
+                    Select a dataset and ask about trends, anomalies, or insights in your data.
                   </p>
+                  <div className="mt-4 grid grid-cols-1 gap-2">
+                    <button
+                      className="rounded-md bg-primary/10 px-3 py-1 text-sm text-primary hover:bg-primary/20"
+                      onClick={() => datasetId && setPrompt("What are the top 5 values in " + datasetsData?.items?.find(d => d.id === datasetId)?.name + "?")}
+                    >
+                      What are the top values in this dataset?
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -91,8 +129,11 @@ export function ChatPage() {
                       }`}
                     >
                       <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                      {msg.model && (
-                        <Badge variant="secondary" className="mt-2">{msg.model}</Badge>
+                      {(msg.model || msg.provider) && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {msg.model && <Badge variant="secondary">{msg.model}</Badge>}
+                          {msg.provider && <Badge variant="outline">{msg.provider}</Badge>}
+                        </div>
                       )}
                     </div>
                   </motion.div>
@@ -102,7 +143,7 @@ export function ChatPage() {
               {loading && (
                 <div className="flex items-center gap-2 text-sm text-muted">
                   <Loader2 className="size-4 animate-spin" />
-                  AI is thinking...
+                  AI is analyzing your data...
                 </div>
               )}
             </div>
@@ -123,7 +164,13 @@ export function ChatPage() {
                     }
                   }}
                 />
-                <Button size="icon" className="shrink-0 self-end" onClick={sendMessage} disabled={loading || !prompt.trim()} aria-label="Send message">
+                <Button 
+                  size="icon" 
+                  className="shrink-0 self-end" 
+                  onClick={sendMessage} 
+                  disabled={loading || !prompt.trim() || datasetId === "none"}
+                  aria-label="Send message"
+                >
                   <Send className="size-4" />
                 </Button>
               </div>
@@ -132,23 +179,36 @@ export function ChatPage() {
         </Card>
 
         <Card className="w-full shrink-0 lg:w-72">
-          <CardHeader><CardTitle>Context</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Dataset Context</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Dataset (optional)</Label>
+              <Label>Dataset</Label>
               <Select value={datasetId} onValueChange={setDatasetId}>
-                <SelectTrigger><SelectValue placeholder="All datasets" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a dataset" />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No specific dataset</SelectItem>
                   {(datasetsData?.items ?? []).map((ds) => (
-                    <SelectItem key={ds.id} value={ds.id}>{ds.name}</SelectItem>
+                    <SelectItem key={ds.id} value={ds.id}>
+                      <div>
+                        <div className="font-medium">{ds.name}</div>
+                        <div className="text-xs text-muted">
+                          {ds.row_count} rows • {ds.column_count || 'N/A'} columns
+                        </div>
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <p className="text-xs text-muted">
-              Selecting a dataset gives the AI context about your specific data columns and values.
+              The AI will analyze your dataset and use its context to answer your questions.
             </p>
+            {conversationId && (
+              <div className="text-xs text-muted">
+                <Badge variant="outline" className="text-xs">Active conversation</Badge>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

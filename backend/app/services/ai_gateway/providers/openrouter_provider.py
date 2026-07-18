@@ -129,20 +129,23 @@ class OpenRouterProvider(AIProvider):
         openrouter_messages = self._convert_messages(messages)
         openrouter_tools = self._convert_tools(tools)
 
-        response = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=openrouter_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            response_format=config.response_format,
-            seed=config.seed,
-            tools=openrouter_tools,
-            tool_choice="auto" if openrouter_tools else None,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": openrouter_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+            "presence_penalty": config.presence_penalty,
+            "frequency_penalty": config.frequency_penalty,
+            "response_format": config.response_format,
+            "seed": config.seed,
+        }
+        if openrouter_tools:
+            kwargs["tools"] = openrouter_tools
+            kwargs["tool_choice"] = "auto"
+
+        response = await self._client.chat.completions.create(**kwargs)
 
         choice = response.choices[0]
         tool_calls = []
@@ -187,21 +190,24 @@ class OpenRouterProvider(AIProvider):
         openrouter_messages = self._convert_messages(messages)
         openrouter_tools = self._convert_tools(tools)
 
-        stream = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=openrouter_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            response_format=config.response_format,
-            seed=config.seed,
-            tools=openrouter_tools,
-            tool_choice="auto" if openrouter_tools else None,
-            stream=True,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": openrouter_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+            "presence_penalty": config.presence_penalty,
+            "frequency_penalty": config.frequency_penalty,
+            "response_format": config.response_format,
+            "seed": config.seed,
+            "stream": True,
+        }
+        if openrouter_tools:
+            kwargs["tools"] = openrouter_tools
+            kwargs["tool_choice"] = "auto"
+
+        stream = await self._client.chat.completions.create(**kwargs)
 
         tool_calls_buffer: dict[int, dict] = {}
 

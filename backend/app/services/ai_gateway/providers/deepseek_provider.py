@@ -95,20 +95,23 @@ class DeepSeekProvider(AIProvider):
         deepseek_messages = self._convert_messages(messages)
         deepseek_tools = self._convert_tools(tools)
 
-        response = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=deepseek_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            response_format=config.response_format,
-            seed=config.seed,
-            tools=deepseek_tools,
-            tool_choice="auto" if deepseek_tools else None,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": deepseek_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+            "presence_penalty": config.presence_penalty,
+            "frequency_penalty": config.frequency_penalty,
+            "response_format": config.response_format,
+            "seed": config.seed,
+        }
+        if deepseek_tools:
+            kwargs["tools"] = deepseek_tools
+            kwargs["tool_choice"] = "auto"
+
+        response = await self._client.chat.completions.create(**kwargs)
 
         choice = response.choices[0]
         tool_calls = []
@@ -149,21 +152,24 @@ class DeepSeekProvider(AIProvider):
         deepseek_messages = self._convert_messages(messages)
         deepseek_tools = self._convert_tools(tools)
 
-        stream = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=deepseek_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            response_format=config.response_format,
-            seed=config.seed,
-            tools=deepseek_tools,
-            tool_choice="auto" if deepseek_tools else None,
-            stream=True,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": deepseek_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+            "presence_penalty": config.presence_penalty,
+            "frequency_penalty": config.frequency_penalty,
+            "response_format": config.response_format,
+            "seed": config.seed,
+            "stream": True,
+        }
+        if deepseek_tools:
+            kwargs["tools"] = deepseek_tools
+            kwargs["tool_choice"] = "auto"
+
+        stream = await self._client.chat.completions.create(**kwargs)
 
         tool_calls_buffer: dict[int, dict] = {}
 

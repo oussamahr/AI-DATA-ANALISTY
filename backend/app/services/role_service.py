@@ -48,6 +48,7 @@ SYSTEM_ROLES = {
         "permissions": [
             "dataset:read",
             "analytics:read",
+            "llm:query",
         ],
     },
 }

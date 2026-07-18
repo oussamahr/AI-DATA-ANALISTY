@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, Query, Request
+import json
 
-from app.core.dependencies import get_current_user, require_verified
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from app.core.dependencies import get_current_user
 from app.core.security.audit import audit_logger
 from app.core.security.rate_limit import rate_limit_dependency
 from app.models.user import User
@@ -12,16 +14,30 @@ router = APIRouter()
 
 @router.post("/query", response_model=LLMQueryResponse)
 async def query_llm(
-    data: LLMQueryRequest,
     request: Request,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     llm_service: LLMService = Depends(),
 ):
+    raw = await request.body()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Request body is empty")
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = raw.decode("utf-8", errors="replace").strip()
+    if isinstance(parsed, str):
+        data = LLMQueryRequest(prompt=parsed)
+    elif isinstance(parsed, dict):
+        data = LLMQueryRequest(**parsed)
+    else:
+        raise HTTPException(status_code=400, detail="Request body must be a JSON object or string")
+    
     await rate_limit_dependency("30/minute", "llm_query", request)
     result = await llm_service.query(
         prompt=data.prompt,
         user=current_user,
         tenant_id=str(current_user.tenant_id) if current_user.tenant_id else None,
+        dataset_id=str(data.dataset_id) if data.dataset_id else None,
     )
     await audit_logger.log(
         "LLM_QUERY",

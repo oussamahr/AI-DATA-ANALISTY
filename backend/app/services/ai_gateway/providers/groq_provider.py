@@ -93,16 +93,19 @@ class GroqProvider(AIProvider):
         groq_messages = self._convert_messages(messages)
         groq_tools = self._convert_tools(tools)
 
-        response = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=groq_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            tools=groq_tools,
-            tool_choice="auto" if groq_tools else None,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": groq_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+        }
+        if groq_tools:
+            kwargs["tools"] = groq_tools
+            kwargs["tool_choice"] = "auto"
+
+        response = await self._client.chat.completions.create(**kwargs)
 
         choice = response.choices[0]
         tool_calls = []
@@ -143,17 +146,20 @@ class GroqProvider(AIProvider):
         groq_messages = self._convert_messages(messages)
         groq_tools = self._convert_tools(tools)
 
-        stream = await self._client.chat.completions.create(
-            model=self.config.default_model,
-            messages=groq_messages,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_p=config.top_p,
-            stop=config.stop_sequences or None,
-            tools=groq_tools,
-            tool_choice="auto" if groq_tools else None,
-            stream=True,
-        )
+        kwargs = {
+            "model": self.config.default_model,
+            "messages": groq_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "top_p": config.top_p,
+            "stop": config.stop_sequences or None,
+            "stream": True,
+        }
+        if groq_tools:
+            kwargs["tools"] = groq_tools
+            kwargs["tool_choice"] = "auto"
+
+        stream = await self._client.chat.completions.create(**kwargs)
 
         accumulated_content = ""
         tool_calls_buffer: dict[int, dict] = {}

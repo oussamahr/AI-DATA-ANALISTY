@@ -15,9 +15,9 @@ python-multipart==0.0.12
 
 # LLM Providers
 openai==1.50.0
-google-generativeai==0.8.0
-groq==0.13.0
-anthropic==0.39.0
+google-generativeai==0.8.6
+groq==1.5.0
+anthropic==0.117.0
 
 # HTTP client
 httpx==0.27.0
@@ -25,9 +25,9 @@ httpx==0.27.0
 # File processing
 aiofiles==24.1.0
 openpyxl==3.1.5
-pandas==2.2.3
-pyarrow==18.1.0
-numpy==2.2.6
+pandas==3.0.3
+pyarrow==25.0.0
+numpy==2.5.1
 xlrd==2.0.1
 
 # Rate limiting

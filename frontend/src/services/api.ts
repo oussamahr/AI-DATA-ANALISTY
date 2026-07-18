@@ -293,6 +293,30 @@ class ApiService {
     return data;
   }
 
+  async chatAboutDataset(datasetId: string, message: string, conversationId?: string) {
+    const { data } = await this.client.post<{
+      conversation_id: string;
+      response: string;
+      model: string;
+      provider: string;
+      usage: { prompt_tokens: number; completion_tokens: number };
+    }>(`/ai/chat/${datasetId}`, {
+      message,
+      conversation_id: conversationId,
+    });
+    return data;
+  }
+
+  async getChatHistory(conversationId: string) {
+    const { data } = await this.client.get<any[]>(`/ai/chat/history/${conversationId}`);
+    return data;
+  }
+
+  async listConversations(datasetId: string) {
+    const { data } = await this.client.get<any[]>(`/ai/chat/conversations/${datasetId}`);
+    return data;
+  }
+
   async getLLMHistory(limit = 50, offset = 0) {
     const { data } = await this.client.get<LLMQueryHistoryItem[]>("/llm/history", {
       params: { limit, offset },
