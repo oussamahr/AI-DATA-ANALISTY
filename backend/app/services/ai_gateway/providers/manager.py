@@ -4,7 +4,10 @@ Provider Manager - Handles provider selection, initialization, and automatic fal
 Implements priority-based provider selection with automatic failover.
 """
 
+import asyncio
+import hashlib
 import logging
+import time
 from typing import Any, Optional
 
 from app.core.config import settings
@@ -21,6 +24,25 @@ from app.services.ai_gateway.providers.base import (
 from app.services.ai_gateway.providers import PROVIDER_CLASSES, DEFAULT_PROVIDER_PRIORITY
 
 logger = logging.getLogger("ai_gateway.provider_manager")
+
+
+# Request deduplication cache
+_request_cache: dict[str, tuple[float, Any]] = {}
+_REQUEST_CACHE_TTL = 30  # seconds
+
+
+def _cache_key(messages: list[ChatMessage], config: Optional[GenerationConfig], tools: Optional[list[dict[str, Any]]], model: Optional[str]) -> str:
+    """Generate cache key for request deduplication."""
+    content = ""
+    for m in messages:
+        content += f"{m.role.value}:{m.content}|"
+    if config:
+        content += f"temp:{config.temperature}|max:{config.max_tokens}|top_p:{config.top_p}|"
+    if model:
+        content += f"model:{model}|"
+    if tools:
+        content += f"tools:{len(tools)}|"
+    return hashlib.sha256(content.encode()).hexdigest()[:32]
 
 
 class ProviderManager:
@@ -235,12 +257,32 @@ class ProviderManager:
         tools: Optional[list[dict[str, Any]]] = None,
         provider_type: Optional[ProviderType] = None,
         model: Optional[str] = None,
+        tenant_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
+        use_cache: bool = True,
     ) -> ChatResponse:
         """
-        Generate chat completion with automatic fallback.
+        Generate chat completion with automatic fallback and request deduplication.
 
         Tries providers in priority order until one succeeds.
+        
+        Args:
+            tenant_id: Optional tenant ID for isolation and audit logging
+            user_id: Optional user ID for audit logging
+            use_cache: Whether to use request deduplication cache (default: True)
         """
+        # Request deduplication
+        cache_key = _cache_key(messages, config, tools, model)
+        now = time.time()
+        
+        if use_cache and cache_key in _request_cache:
+            cached_time, cached_response = _request_cache[cache_key]
+            if now - cached_time < _REQUEST_CACHE_TTL:
+                logger.info(f"Cache hit for request (tenant={tenant_id}, user={user_id})")
+                return cached_response
+            else:
+                del _request_cache[cache_key]
+        
         last_error = None
 
         for attempt in range(len(self.provider_priority)):
@@ -255,17 +297,27 @@ class ProviderManager:
                     original_model = provider.config.default_model
                     provider.config.default_model = model
                     try:
-                        return await provider.chat(messages, config, tools)
+                        response = await provider.chat(messages, config, tools)
+                        # Cache successful response
+                        if use_cache:
+                            _request_cache[cache_key] = (now, response)
+                        return response
                     finally:
                         provider.config.default_model = original_model
                 else:
-                    return await provider.chat(messages, config, tools)
+                    response = await provider.chat(messages, config, tools)
+                    # Cache successful response
+                    if use_cache:
+                        _request_cache[cache_key] = (now, response)
+                    return response
 
             except Exception as e:
                 last_error = e
                 current = self._current_provider
                 if current:
-                    logger.warning(f"Provider {current.value} failed: {e}, trying next provider")
+                    logger.warning(
+                        f"Provider {current.value} failed for tenant={tenant_id}, user={user_id}: {e}, trying next provider"
+                    )
                     self._healthy_providers.discard(current)
                     # Try to reinitialize on next attempt
                     self._initialized_providers.discard(current)
@@ -274,6 +326,7 @@ class ProviderManager:
                         del self._providers[current]
                 continue
 
+        logger.error(f"All providers failed for tenant={tenant_id}, user={user_id}. Last error: {last_error}")
         raise RuntimeError(f"All providers failed. Last error: {last_error}")
 
     async def stream_chat(
@@ -283,6 +336,8 @@ class ProviderManager:
         tools: Optional[list[dict[str, Any]]] = None,
         provider_type: Optional[ProviderType] = None,
         model: Optional[str] = None,
+        tenant_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ):
         """Stream chat completion with automatic fallback."""
         # For streaming, we use the first available provider
@@ -306,7 +361,7 @@ class ProviderManager:
                     yield chunk
 
         except Exception as e:
-            logger.error(f"Streaming failed: {e}")
+            logger.error(f"Streaming failed for tenant={tenant_id}, user={user_id}: {e}")
             raise
 
     async def generate(
@@ -314,12 +369,16 @@ class ProviderManager:
         prompt: str,
         config: Optional[GenerationConfig] = None,
         provider_type: Optional[ProviderType] = None,
+        tenant_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> ChatResponse:
         """Generate text completion with automatic fallback."""
         return await self.chat(
             messages=[ChatMessage(role="user", content=prompt)],
             config=config,
             provider_type=provider_type,
+            tenant_id=tenant_id,
+            user_id=user_id,
         )
 
     async def embeddings(
@@ -327,6 +386,8 @@ class ProviderManager:
         texts: list[str],
         model: Optional[str] = None,
         provider_type: Optional[ProviderType] = None,
+        tenant_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> EmbeddingResponse:
         """Generate embeddings with automatic fallback."""
         last_error = None
@@ -350,7 +411,7 @@ class ProviderManager:
 
             except Exception as e:
                 last_error = e
-                logger.warning(f"Embeddings failed for {ptype.value}: {e}")
+                logger.warning(f"Embeddings failed for {ptype.value} (tenant={tenant_id}, user={user_id}): {e}")
                 continue
 
         raise RuntimeError(f"All embedding providers failed. Last error: {last_error}")
@@ -361,6 +422,8 @@ class ProviderManager:
         images: list,
         config: Optional[GenerationConfig] = None,
         provider_type: Optional[ProviderType] = None,
+        tenant_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> ChatResponse:
         """Generate vision response with automatic fallback."""
         last_error = None
@@ -381,7 +444,7 @@ class ProviderManager:
 
             except Exception as e:
                 last_error = e
-                logger.warning(f"Vision failed for {ptype.value}: {e}")
+                logger.warning(f"Vision failed for {ptype.value} (tenant={tenant_id}, user={user_id}): {e}")
                 continue
 
         raise RuntimeError(f"All vision providers failed. Last error: {last_error}")
@@ -416,27 +479,42 @@ class ProviderManager:
         self._current_provider = None
 
     async def health_check_all(self) -> dict[ProviderType, bool]:
-        """Check health of all configured providers."""
-        results = {}
-        for ptype in self.provider_priority:
+        """Check health of all configured providers in parallel."""
+        async def check_provider(ptype: ProviderType) -> tuple[ProviderType, bool]:
             config = self._build_provider_config(ptype)
             if not config.api_key:
-                results[ptype] = False
-                continue
+                return ptype, False
 
             if ptype in self._healthy_providers:
                 provider = self._providers.get(ptype)
                 if provider:
-                    results[ptype] = await provider.health_check()
-                    if not results[ptype]:
-                        self._healthy_providers.discard(ptype)
-                else:
-                    results[ptype] = False
+                    try:
+                        healthy = await provider.health_check()
+                        return ptype, healthy
+                    except Exception:
+                        return ptype, False
+                return ptype, False
             else:
                 provider = await self.initialize_provider(ptype)
-                results[ptype] = provider is not None
+                return ptype, provider is not None
 
-        return results
+        # Run all health checks in parallel
+        tasks = [check_provider(ptype) for ptype in self.provider_priority]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        health_results = {}
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Health check error: {result}")
+                continue
+            ptype, healthy = result
+            health_results[ptype] = healthy
+            if not healthy and ptype in self._healthy_providers:
+                self._healthy_providers.discard(ptype)
+            elif healthy and ptype not in self._healthy_providers:
+                self._healthy_providers.add(ptype)
+
+        return health_results
 
 
 # Global provider manager instance

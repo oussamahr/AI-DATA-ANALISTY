@@ -1,6 +1,8 @@
 import json
+import warnings
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
 from app.core.dependencies import get_current_user
 from app.core.security.audit import audit_logger
@@ -12,12 +14,32 @@ from app.services.llm_service import LLMService
 router = APIRouter()
 
 
-@router.post("/query", response_model=LLMQueryResponse)
+def deprecated_response(message: str = "This endpoint is deprecated. Use /api/v1/ai/chat/{dataset_id} instead.") -> JSONResponse:
+    """Return a deprecation response with warning header."""
+    return JSONResponse(
+        status_code=200,
+        content={"message": message, "deprecated": True},
+        headers={"Deprecation": "true", "Link": '</api/v1/ai/chat/{dataset_id}>; rel="successor-version"'}
+    )
+
+
+@router.post("/query", response_model=LLMQueryResponse, deprecated=True)
 async def query_llm(
     request: Request,
     current_user: User = Depends(get_current_user),
     llm_service: LLMService = Depends(),
 ):
+    """
+    Deprecated: Use /api/v1/ai/chat/{dataset_id} instead.
+    
+    This endpoint is maintained for backward compatibility but will be removed in a future version.
+    """
+    warnings.warn(
+        "The /api/v1/llm/query endpoint is deprecated. Use /api/v1/ai/chat/{dataset_id} instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     raw = await request.body()
     if not raw:
         raise HTTPException(status_code=400, detail="Request body is empty")
@@ -53,13 +75,24 @@ async def query_llm(
     return result
 
 
-@router.get("/history", response_model=list[LLMQueryHistoryItem])
+@router.get("/history", response_model=list[LLMQueryHistoryItem], deprecated=True)
 async def query_history(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     llm_service: LLMService = Depends(),
 ):
+    """
+    Deprecated: Use /api/v1/ai/chat/conversations/{dataset_id} instead.
+    
+    This endpoint is maintained for backward compatibility but will be removed in a future version.
+    """
+    warnings.warn(
+        "The /api/v1/llm/history endpoint is deprecated. Use /api/v1/ai/chat/conversations/{dataset_id} instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     results = await llm_service.get_history(str(current_user.id), limit, offset)
     return [
         LLMQueryHistoryItem(

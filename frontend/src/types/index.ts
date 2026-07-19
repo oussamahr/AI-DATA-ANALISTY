@@ -254,3 +254,144 @@ export interface PasswordChangeFormData {
   new_password: string;
   confirm_password: string;
 }
+
+// ==================== Python Code Generation ====================
+
+export interface PythonCodeRequest {
+  task_description: string;
+  libraries?: string[];
+}
+
+export interface PythonCodeResponse {
+  code: string;
+  description: string;
+  dependencies: string[];
+  expected_outputs: string[];
+}
+
+export interface AnalysisPipelineRequest {
+  analysis_goals: string;
+  target_column?: string;
+}
+
+export interface VisualizationCodeRequest {
+  chart_type: string;
+  columns: string[];
+  chart_config?: Record<string, unknown>;
+}
+
+export interface StatisticalAnalysisRequest {
+  analysis_type: string;
+  columns: string[];
+  hypothesis?: string;
+}
+
+// ==================== SQL Generation with Execution ====================
+
+export interface SQLWithExecutionResponse {
+  sql: string;
+  explanation: string;
+  is_safe: boolean;
+  estimated_rows: number;
+  columns: string[];
+  execution_plan: Record<string, unknown>;
+  safety_checks: Record<string, boolean>;
+  parameterized_version: string;
+}
+
+// ==================== Dashboard Explanations ====================
+
+export interface DashboardExplainRequest {
+  dashboard_spec: Record<string, unknown>;
+  audience?: string;
+}
+
+export interface DashboardExplanationResponse {
+  purpose: string;
+  kpi_explanations: Record<string, unknown>[];
+  chart_walkthrough: Record<string, unknown>[];
+  usage_guide: string;
+  limitations: string[];
+}
+
+export interface ChartInterpretRequest {
+  chart_config: Record<string, unknown>;
+  chart_data: Record<string, unknown>;
+  business_context?: string;
+}
+
+export interface ChartInterpretationResponse {
+  what_it_shows: string;
+  key_observations: string[];
+  business_implications: string[];
+  follow_up_questions: string[];
+  caveats: string[];
+}
+
+// ==================== Business Insights ====================
+
+export interface BusinessInsightsRequest {
+  business_domain?: string;
+  key_questions?: string[];
+  time_period?: string;
+}
+
+export interface BusinessInsightsResponse {
+  insights: BusinessInsight[];
+  summary: string;
+  key_metrics_table: KeyMetric[];
+  strategic_themes: string[];
+}
+
+export interface BusinessInsight {
+  category: string;
+  title: string;
+  finding: string;
+  evidence: string;
+  impact: "high" | "medium" | "low";
+  confidence: number;
+  recommendation: string;
+  priority: "immediate" | "short_term" | "strategic";
+  estimated_impact?: string;
+  owner?: string;
+  related_metrics?: string[];
+}
+
+export interface KeyMetric {
+  metric: string;
+  current: number;
+  trend: "up" | "down" | "stable";
+  benchmark: number;
+}
+
+// ==================== Forecasting Suggestions ====================
+
+export interface ForecastingSuggestionsRequest {
+  target_columns?: string[];
+  business_context?: string;
+  forecast_horizon?: string;
+}
+
+export interface ForecastingSuggestion {
+  target_column: string;
+  recommended_method: string;
+  reason: string;
+  seasonality: string;
+  trend_type: string;
+  data_requirements: {
+    min_periods: number;
+    preferred_periods: number;
+    missing_data_tolerance: string;
+  };
+  configuration: Record<string, unknown>;
+  validation_strategy: string;
+  expected_accuracy: string;
+  caveats: string[];
+  alternative_methods: string[];
+}
+
+export interface ForecastingSuggestionsResponse {
+  recommendations: ForecastingSuggestion[];
+  general_guidance: string;
+  data_prep_steps: string[];
+}

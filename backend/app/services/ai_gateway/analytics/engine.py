@@ -318,7 +318,7 @@ class AIAnalyticsEngine:
         when a dataset is uploaded.
         """
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
 
         context = self._prepare_dataset_context(df)
 
@@ -567,7 +567,7 @@ class AIAnalyticsEngine:
     ) -> DataQualityReport:
         """Comprehensive data quality assessment."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Use AI to identify issues
@@ -619,7 +619,7 @@ class AIAnalyticsEngine:
     ) -> InsightsReport:
         """Generate intelligent, ranked insights."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Use the AI insights prompt
@@ -717,7 +717,7 @@ class AIAnalyticsEngine:
     ) -> CleaningPlan:
         """Generate executable data cleaning plan."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Get issues from quality assessment
@@ -753,7 +753,7 @@ class AIAnalyticsEngine:
     ) -> dict[str, Any]:
         """Execute a cleaning plan and return results."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         original_shape = df.shape
 
         results = {"steps_executed": [], "rows_affected": 0, "errors": []}
@@ -855,7 +855,7 @@ class AIAnalyticsEngine:
     ) -> ForecastResult:
         """Generate time series forecast."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
 
         # Prepare historical data for prompt
         historical = df[[date_column, value_column]].dropna().tail(100)
@@ -897,7 +897,7 @@ class AIAnalyticsEngine:
     ) -> AnomalyReport:
         """Detect anomalies in dataset."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -935,7 +935,7 @@ class AIAnalyticsEngine:
     ) -> ChartRecommendations:
         """Recommend optimal visualizations."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -972,7 +972,7 @@ class AIAnalyticsEngine:
     ) -> SQLQueryResult:
         """Convert natural language to safe SQL."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
 
         # Build schema info
         schema = {}
@@ -1025,7 +1025,7 @@ class AIAnalyticsEngine:
     ) -> str:
         """Explain SQL in plain language."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
 
         schema = {}
         for col in df.columns:
@@ -1054,7 +1054,7 @@ class AIAnalyticsEngine:
     ) -> ReportContent:
         """Generate executive report."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Get insights
@@ -1097,7 +1097,7 @@ class AIAnalyticsEngine:
     ) -> ReportContent:
         """Generate technical report."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -1130,7 +1130,7 @@ class AIAnalyticsEngine:
     ) -> ReportContent:
         """Generate business report."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -1168,7 +1168,7 @@ class AIAnalyticsEngine:
     ) -> DashboardSpec:
         """Generate complete dashboard specification."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -1198,7 +1198,7 @@ class AIAnalyticsEngine:
     ) -> dict[str, Any]:
         """Chat with AI about a dataset with memory."""
         ds = await self._get_dataset(dataset_id, user)
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Get or create conversation

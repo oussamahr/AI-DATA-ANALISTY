@@ -1,103 +1,10 @@
-import json
-import math
-import uuid
-import warnings
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
-
-import numpy as np
-import pandas as pd
-from fastapi import Depends, HTTPException, status
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_session
-from app.core.security.exceptions import AppException
-from app.models.analysis import AnalysisResult, AnalysisRun, DataProfile
-from app.models.dataset import Dataset
-from app.models.user import User
-
-DATA_EXTENSION_READERS = {
-    ".csv": lambda p: pd.read_csv(p, low_memory=False, parse_dates=True),
-    ".tsv": lambda p: pd.read_csv(p, sep="\t", low_memory=False, parse_dates=True),
-    ".xlsx": lambda p: pd.read_excel(p, engine="openpyxl"),
-    ".xls": lambda p: pd.read_excel(p, engine="xlrd"),
-    ".json": lambda p: pd.read_json(p),
-    ".parquet": lambda p: pd.read_parquet(p),
-    ".feather": lambda p: pd.read_feather(p),
-}
-
-
-def _load_dataframe(file_path: str) -> pd.DataFrame:
-    ext = Path(file_path).suffix.lower()
-    reader = DATA_EXTENSION_READERS.get(ext)
-    if reader is None:
-        raise AppException(f"Unsupported file format: {ext}", 400)
-    try:
-        df = reader(file_path)
-    except Exception as e:
-        raise AppException(f"Failed to read dataset: {str(e)}", 422) from e
-    for col in df.select_dtypes(include=["object", "str", "string"]).columns:
-        try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", message="Could not infer format")
-                converted = pd.to_datetime(df[col], errors="coerce", format=None)
-            if converted.notna().sum() > len(df) * 0.5:
-                df[col] = converted
-        except (ValueError, TypeError):
-            pass
-    return df
-
-
-def _infer_column_dtype(series: pd.Series) -> str:
-    if pd.api.types.is_bool_dtype(series):
-        return "boolean"
-    if pd.api.types.is_numeric_dtype(series):
-        return "numeric"
-    if pd.api.types.is_datetime64_any_dtype(series):
-        return "datetime"
-    n_unique = series.nunique()
-    n_total = max(len(series), 1)
-    if n_unique < 20:
-        if n_total >= 100 or n_unique / n_total < 0.7:
-            return "categorical"
-        return "text"
-    if n_unique / n_total < 0.05:
-        return "categorical"
-    return "text"
-
-
-def _compute_histogram(series: pd.Series, bins: int = 20) -> list[dict]:
-    series = series.dropna()
-    if len(series) == 0:
-        return []
-    try:
-        counts, edges = np.histogram(series, bins=bins)
-        return [
-            {"bin_start": float(edges[i]), "bin_end": float(edges[i + 1]), "count": int(counts[i])}
-            for i in range(len(counts))
-        ]
-    except Exception:
-        return []
-
-
-def _compute_top_values(series: pd.Series, limit: int = 10) -> list[dict]:
-    vc = series.value_counts().head(limit)
-    total = max(len(series), 1)
-    return [
-        {"value": str(val), "count": int(cnt), "percent": round(cnt / total * 100, 2)}
-        for val, cnt in vc.items()
-    ]
-
-
-def _coerce_numeric(val: Any) -> float | None:
-    if val is None or (isinstance(val, float) and math.isnan(val)):
-        return None
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return None
+from app.services.data_loader import (
+    load_dataframe,
+    infer_column_dtype,
+    compute_histogram,
+    compute_top_values,
+    coerce_numeric,
+)
 
 
 class AnalyticsService:
@@ -129,14 +36,14 @@ class AnalyticsService:
 
         await self.db.execute(delete(DataProfile).where(DataProfile.dataset_id == ds.id))
 
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
         profiles = []
 
         for col_name in df.columns:
             series = df[col_name]
             total = len(series)
             null_count = int(series.isna().sum())
-            dtype = _infer_column_dtype(series)
+            dtype = infer_column_dtype(series)
             cleaned = series.dropna()
 
             profile = DataProfile(
@@ -147,17 +54,17 @@ class AnalyticsService:
                 null_count=null_count,
                 total_count=total,
                 unique_count=int(cleaned.nunique()),
-                top_values=_compute_top_values(cleaned),
+                top_values=compute_top_values(cleaned),
             )
 
             if dtype == "numeric" and len(cleaned) > 0:
                 nums = cleaned.astype(float)
                 profile.min_val = str(nums.min()) if not nums.empty else None
                 profile.max_val = str(nums.max()) if not nums.empty else None
-                profile.mean = _coerce_numeric(nums.mean())
-                profile.median = _coerce_numeric(nums.median())
-                profile.std = _coerce_numeric(nums.std())
-                profile.histogram = _compute_histogram(nums)
+                profile.mean = coerce_numeric(nums.mean())
+                profile.median = coerce_numeric(nums.median())
+                profile.std = coerce_numeric(nums.std())
+                profile.histogram = compute_histogram(nums)
             elif dtype == "datetime" and len(cleaned) > 0:
                 profile.min_val = str(cleaned.min())
                 profile.max_val = str(cleaned.max())
@@ -194,7 +101,7 @@ class AnalyticsService:
         profiles = await self.get_profiles(dataset_id, user)
         numeric_cols = [p.column_name for p in profiles if p.dtype == "numeric"]
 
-        df = _load_dataframe(ds.file_path)
+        df = load_dataframe(ds.file_path)
 
         if not numeric_cols:
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -280,7 +187,7 @@ class AnalyticsService:
 
         try:
             profiles = await self.run_profile(dataset_id, user, force=True)
-            df = _load_dataframe(ds.file_path)
+            df = load_dataframe(ds.file_path)
             numeric_cols = [p.column_name for p in profiles if p.dtype == "numeric"]
 
             sections = []
