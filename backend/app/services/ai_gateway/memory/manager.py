@@ -4,15 +4,18 @@ Conversation Memory Manager - Handles persistence and retrieval of AI conversati
 Provides per-dataset conversation history with automatic summarization.
 """
 
+import base64
 import json
 import logging
 from datetime import datetime, UTC
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_session
 from app.models.conversation import ConversationModel, ConversationMessageModel
 from app.models.dataset import Dataset
@@ -26,6 +29,82 @@ from app.services.ai_gateway.memory.models import (
 )
 
 logger = logging.getLogger("ai_gateway.memory")
+
+
+class ConversationEncryption:
+    """Handles encryption/decryption of conversation content using AES-GCM."""
+
+    def __init__(self, master_key: Optional[bytes] = None):
+        if master_key is None:
+            # Derive key from settings.SECRET_KEY
+            import hashlib
+            key_material = settings.SECRET_KEY.encode() if isinstance(settings.SECRET_KEY, str) else settings.SECRET_KEY
+            self._key = hashlib.sha256(key_material).digest()[:32]
+        else:
+            self._key = master_key
+        self._cipher = AESGCM(self._key)
+
+    def encrypt(self, plaintext: str) -> str:
+        """Encrypt plaintext and return base64-encoded ciphertext with nonce."""
+        if not plaintext:
+            return ""
+        nonce = base64.urlsafe_b64encode(os.urandom(12)).decode()
+        ciphertext = self._cipher.encrypt(
+            base64.urlsafe_b64decode(nonce),
+            plaintext.encode("utf-8"),
+            None
+        )
+        # Store as: nonce:ciphertext
+        return f"{nonce}:{base64.urlsafe_b64encode(ciphertext).decode()}"
+
+    def decrypt(self, encrypted: str) -> str:
+        """Decrypt base64-encoded ciphertext with nonce."""
+        if not encrypted or ":" not in encrypted:
+            return encrypted  # Return as-is if not encrypted (backward compatibility)
+        try:
+            nonce_b64, ciphertext_b64 = encrypted.split(":", 1)
+            nonce = base64.urlsafe_b64decode(nonce_b64)
+            ciphertext = base64.urlsafe_b64decode(ciphertext_b64)
+            plaintext = self._cipher.decrypt(nonce, ciphertext, None)
+            return plaintext.decode("utf-8")
+        except Exception as e:
+            logger.warning(f"Decryption failed, returning raw: {e}")
+            return encrypted
+
+    def encrypt_dict(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Encrypt sensitive fields in a dict."""
+        encrypted = data.copy()
+        sensitive_fields = ["content", "system_prompt", "dataset_context", "sql_query"]
+        for field in sensitive_fields:
+            if field in encrypted and isinstance(encrypted[field], str):
+                encrypted[field] = self.encrypt(encrypted[field])
+        return encrypted
+
+    def decrypt_dict(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Decrypt sensitive fields in a dict."""
+        decrypted = data.copy()
+        sensitive_fields = ["content", "system_prompt", "dataset_context", "sql_query"]
+        for field in sensitive_fields:
+            if field in decrypted and isinstance(decrypted[field], str):
+                decrypted[field] = self.decrypt(decrypted[field])
+        return decrypted
+
+
+# Global encryption instance
+_encryption: Optional[ConversationEncryption] = None
+
+
+def get_conversation_encryption() -> ConversationEncryption:
+    """Get or create the global conversation encryption instance."""
+    global _encryption
+    if _encryption is None:
+        _encryption = ConversationEncryption()
+    return _encryption
+
+
+import os
+import hashlib
+import base64
 
 
 class ConversationMemory:
@@ -70,12 +149,13 @@ class ConversationMemory:
         )
 
     def _model_to_message(self, model: ConversationMessageModel) -> ConversationMessage:
-        """Convert database model to domain model."""
+        """Convert database model to domain model with decryption."""
+        encryption = get_conversation_encryption()
         return ConversationMessage(
             id=model.id,
             conversation_id=model.conversation_id,
             role=model.role,
-            content=model.content,
+            content=encryption.decrypt(model.content),
             model=model.model,
             provider=model.provider,
             tokens_prompt=model.tokens_prompt,
@@ -85,7 +165,7 @@ class ConversationMemory:
             tool_call_id=model.tool_call_id,
             dataset_id=model.dataset_id,
             chart_data=model.chart_data,
-            sql_query=model.sql_query,
+            sql_query=encryption.decrypt(model.sql_query) if model.sql_query else None,
             created_at=model.created_at,
         )
 
@@ -256,7 +336,7 @@ class ConversationMemory:
         chart_data: Optional[dict[str, Any]] = None,
         sql_query: Optional[str] = None,
     ) -> ConversationMessage:
-        """Add a message to a conversation."""
+        """Add a message to a conversation with encryption for sensitive fields."""
         db = await self._get_db()
 
         # Verify conversation ownership
@@ -270,11 +350,16 @@ class ConversationMemory:
         if not conv_model:
             raise ValueError("Conversation not found or access denied")
 
+        # Encrypt sensitive fields
+        encryption = get_conversation_encryption()
+        encrypted_content = encryption.encrypt(content)
+        encrypted_sql = encryption.encrypt(sql_query) if sql_query else None
+
         message_model = ConversationMessageModel(
             id=uuid4(),
             conversation_id=conversation_id,
             role=role,
-            content=content,
+            content=encrypted_content,
             model=model,
             provider=provider,
             tokens_prompt=tokens_prompt,
@@ -284,7 +369,7 @@ class ConversationMemory:
             tool_call_id=tool_call_id,
             dataset_id=dataset_id,
             chart_data=chart_data,
-            sql_query=sql_query,
+            sql_query=encrypted_sql,
             created_at=datetime.now(UTC),
         )
 

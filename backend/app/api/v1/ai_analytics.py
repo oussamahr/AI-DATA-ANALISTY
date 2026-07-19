@@ -4,17 +4,20 @@ AI Analytics API Routes.
 Provides endpoints for all advanced AI-powered analytics features.
 """
 
+import re
 import uuid
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.dependencies import get_current_user, require_verified
 from app.core.security.audit import audit_logger
+from app.core.security.exceptions import AppException
+from app.core.security.rate_limit import rate_limit_dependency
 from app.models.dataset import Dataset
 from app.models.user import User
 from app.services.ai_gateway import (
@@ -28,6 +31,33 @@ from app.services.ai_gateway import (
 from app.services.ai_gateway.analytics import AIAnalyticsEngine, get_ai_analytics_engine
 from app.services.ai_gateway.memory import ConversationMemory, get_conversation_memory
 from app.services.ai_gateway.prompts import PromptLibrary, get_prompt_library
+
+# Prompt injection detection patterns (same as in llm_service.py)
+INJECTION_PATTERNS = [
+    re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
+    re.compile(r"you\s+are\s+now\s+(a|an)\s+", re.IGNORECASE),
+    re.compile(r"disregard\s+(all\s+)?prior", re.IGNORECASE),
+    re.compile(r"override\s+(your|all)\s+(rules|instructions|guidelines)", re.IGNORECASE),
+    re.compile(r"act\s+as\s+(a|an)\s+unrestricted", re.IGNORECASE),
+    re.compile(r"\bDAN\b.*jailbreak", re.IGNORECASE),
+    re.compile(r"reveal\s+(your|the)\s+(system|original)\s+prompt", re.IGNORECASE),
+    re.compile(r"output\s+(your|the)\s+(system|initial)\s+message", re.IGNORECASE),
+]
+
+
+def detect_prompt_injection(text: str) -> Optional[str]:
+    """Detect potential prompt injection in user input."""
+    for pattern in INJECTION_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return match.group()
+    return None
+
+
+def sanitize_for_prompt(text: str) -> str:
+    """Basic sanitization for prompt inclusion."""
+    import xml.sax.saxutils as saxutils
+    return saxutils.escape(text, {'"': "&quot;", "'": "&apos;"})
 
 router = APIRouter()
 
@@ -200,6 +230,110 @@ class DashboardResponse(BaseModel):
     insights_panel: bool
     export_enabled: bool
 
+
+# ==================== Python Code Generation ====================
+
+class PythonCodeRequest(BaseModel):
+    task_description: str = Field(..., min_length=1, max_length=2000)
+    libraries: list[str] = ["pandas", "numpy", "matplotlib", "seaborn", "plotly", "scikit-learn"]
+
+
+class PythonCodeResponse(BaseModel):
+    code: str
+    description: str
+    dependencies: list[str]
+    expected_outputs: list[str]
+
+
+class AnalysisPipelineRequest(BaseModel):
+    analysis_goals: str = Field(..., min_length=1, max_length=2000)
+    target_column: Optional[str] = None
+
+
+class VisualizationCodeRequest(BaseModel):
+    chart_type: str = Field(..., min_length=1)
+    columns: list[str] = Field(..., min_length=1)
+    chart_config: dict = {}
+
+
+class StatisticalAnalysisRequest(BaseModel):
+    analysis_type: str = Field(..., min_length=1)
+    columns: list[str] = Field(..., min_length=1)
+    hypothesis: Optional[str] = None
+
+
+# ==================== SQL Generation with Execution ====================
+
+class SQLWithExecutionResponse(BaseModel):
+    sql: str
+    explanation: str
+    is_safe: bool
+    estimated_rows: int
+    columns: list[str]
+    execution_plan: dict
+    safety_checks: dict
+    parameterized_version: str
+
+
+# ==================== Dashboard Explanations ====================
+
+class DashboardExplainRequest(BaseModel):
+    dashboard_spec: dict
+    audience: str = "analyst"
+
+
+class DashboardExplanationResponse(BaseModel):
+    purpose: str
+    kpi_explanations: list[dict]
+    chart_walkthrough: list[dict]
+    usage_guide: str
+    limitations: list[str]
+
+
+class ChartInterpretRequest(BaseModel):
+    chart_config: dict
+    chart_data: dict
+    business_context: str = ""
+
+
+class ChartInterpretationResponse(BaseModel):
+    what_it_shows: str
+    key_observations: list[str]
+    business_implications: list[str]
+    follow_up_questions: list[str]
+    caveats: list[str]
+
+
+# ==================== Business Insights ====================
+
+class BusinessInsightsRequest(BaseModel):
+    business_domain: str = "general"
+    key_questions: list[str] = []
+    time_period: str = "Last 30 days"
+
+
+class BusinessInsightsResponse(BaseModel):
+    insights: list[dict]
+    summary: str
+    key_metrics_table: list[dict]
+    strategic_themes: list[str]
+
+
+# ==================== Forecasting Suggestions ====================
+
+class ForecastingSuggestionsRequest(BaseModel):
+    target_columns: list[str] = []
+    business_context: str = ""
+    forecast_horizon: str = "12 periods"
+
+
+class ForecastingSuggestionsResponse(BaseModel):
+    recommendations: list[dict]
+    general_guidance: str
+    data_prep_steps: list[str]
+
+
+# ==================== Chat ====================
 
 class ChatMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=8000)
@@ -585,16 +719,241 @@ async def generate_dashboard(
     )
 
 
+# ==================== Python Code Generation ====================
+
+@router.post("/python/code/{dataset_id}", response_model=PythonCodeResponse)
+async def generate_python_code(
+    dataset_id: uuid.UUID,
+    request: PythonCodeRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Generate Python code for data analysis task."""
+    result = await engine.generate_python_code(dataset_id, current_user, request.task_description, request.libraries)
+
+    await audit_logger.log(
+        "PYTHON_CODE_GENERATED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+        details={"task": request.task_description[:100]},
+    )
+
+    return PythonCodeResponse(**result.model_dump())
+
+
+@router.post("/python/pipeline/{dataset_id}", response_model=PythonCodeResponse)
+async def generate_analysis_pipeline(
+    dataset_id: uuid.UUID,
+    request: AnalysisPipelineRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Generate complete end-to-end analysis pipeline in Python."""
+    result = await engine.generate_analysis_pipeline(dataset_id, current_user, request.analysis_goals, request.target_column)
+
+    await audit_logger.log(
+        "PYTHON_PIPELINE_GENERATED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+        details={"goals": request.analysis_goals[:100]},
+    )
+
+    return PythonCodeResponse(**result.model_dump())
+
+
+@router.post("/python/visualization/{dataset_id}", response_model=PythonCodeResponse)
+async def generate_visualization_code(
+    dataset_id: uuid.UUID,
+    request: VisualizationCodeRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Generate Python code for specific visualization."""
+    result = await engine.generate_visualization_code(dataset_id, current_user, request.chart_type, request.columns, request.chart_config)
+
+    await audit_logger.log(
+        "PYTHON_VIZ_GENERATED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+        details={"chart_type": request.chart_type, "columns": request.columns},
+    )
+
+    return PythonCodeResponse(**result.model_dump())
+
+
+@router.post("/python/statistical/{dataset_id}", response_model=PythonCodeResponse)
+async def generate_statistical_analysis_code(
+    dataset_id: uuid.UUID,
+    request: StatisticalAnalysisRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Generate Python code for statistical analysis."""
+    result = await engine.generate_statistical_analysis_code(dataset_id, current_user, request.analysis_type, request.columns, request.hypothesis)
+
+    await audit_logger.log(
+        "PYTHON_STATS_GENERATED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+        details={"analysis_type": request.analysis_type, "columns": request.columns},
+    )
+
+    return PythonCodeResponse(**result.model_dump())
+
+
+# ==================== SQL Generation with Execution ====================
+
+@router.post("/sql/generate-with-execution/{dataset_id}", response_model=SQLWithExecutionResponse)
+async def generate_sql_with_execution(
+    dataset_id: uuid.UUID,
+    request: NLQueryRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Generate SQL with execution plan and safety checks."""
+    result = await engine.generate_sql_with_execution(dataset_id, current_user, request.question)
+
+    await audit_logger.log(
+        "SQL_WITH_EXECUTION_GENERATED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+        details={"question": request.question[:100], "is_safe": result.is_safe},
+    )
+
+    return SQLWithExecutionResponse(**result.model_dump())
+
+
+# ==================== Dashboard Explanations ====================
+
+@router.post("/dashboard/explain/{dataset_id}", response_model=DashboardExplanationResponse)
+async def explain_dashboard(
+    dataset_id: uuid.UUID,
+    request: DashboardExplainRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Explain dashboard in plain language for business users."""
+    result = await engine.explain_dashboard(dataset_id, current_user, request.dashboard_spec, request.audience)
+
+    await audit_logger.log(
+        "DASHBOARD_EXPLAINED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+    )
+
+    return DashboardExplanationResponse(**result.model_dump())
+
+
+@router.post("/chart/interpret/{dataset_id}", response_model=ChartInterpretationResponse)
+async def interpret_chart(
+    dataset_id: uuid.UUID,
+    request: ChartInterpretRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Interpret a specific chart and provide insights."""
+    result = await engine.interpret_chart(dataset_id, current_user, request.chart_config, request.chart_data, request.business_context)
+
+    await audit_logger.log(
+        "CHART_INTERPRETED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+    )
+
+    return ChartInterpretationResponse(**result.model_dump())
+
+
+# ==================== Business Insights ====================
+
+@router.post("/insights/business/{dataset_id}", response_model=BusinessInsightsResponse)
+async def generate_business_insights(
+    dataset_id: uuid.UUID,
+    request: BusinessInsightsRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Generate deep business insights with strategic recommendations."""
+    result = await engine.generate_business_insights(dataset_id, current_user, request.business_domain, request.key_questions, request.time_period)
+
+    await audit_logger.log(
+        "BUSINESS_INSIGHTS_GENERATED",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+        details={"domain": request.business_domain, "insight_count": len(result.insights)},
+    )
+
+    return BusinessInsightsResponse(**result.model_dump())
+
+
+# ==================== Forecasting Suggestions ====================
+
+@router.post("/forecast/suggestions/{dataset_id}", response_model=ForecastingSuggestionsResponse)
+async def suggest_forecasting_approach(
+    dataset_id: uuid.UUID,
+    request: ForecastingSuggestionsRequest,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Recommend forecasting approaches for the dataset."""
+    result = await engine.suggest_forecasting_approach(dataset_id, current_user, request.target_columns, request.business_context, request.forecast_horizon)
+
+    await audit_logger.log(
+        "FORECASTING_SUGGESTIONS",
+        "dataset",
+        str(dataset_id),
+        str(current_user.id),
+        str(current_user.tenant_id) if current_user.tenant_id else None,
+        details={"target_columns": request.target_columns, "horizon": request.forecast_horizon},
+    )
+
+    return ForecastingSuggestionsResponse(**result.model_dump())
+
+
 # ==================== Conversational AI ====================
 
 @router.post("/chat/{dataset_id}", response_model=ChatMessageResponse)
 async def chat_about_dataset(
     dataset_id: uuid.UUID,
     request: ChatMessageRequest,
+    http_request: Request,
     current_user: User = Depends(require_verified),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Chat with AI about a dataset with conversation memory."""
+    
+    # Rate limiting for AI chat (30 requests per minute per user)
+    await rate_limit_dependency("30/minute", "ai_chat", http_request)
+    
+    # Prompt injection detection
+    injection = detect_prompt_injection(request.message)
+    if injection:
+        await audit_logger.log(
+            "AI_CHAT_INJECTION_DETECTED",
+            "dataset",
+            str(dataset_id),
+            str(current_user.id),
+            str(current_user.tenant_id) if current_user.tenant_id else None,
+            details={"injection_pattern": injection, "message_preview": request.message[:200]},
+        )
+        # Don't block, but flag for review - the message will be flagged in the conversation
+        # Could also raise HTTPException(status_code=400, detail="Potential prompt injection detected")
+    
     result = await engine.chat_about_dataset(
         dataset_id,
         current_user,
@@ -608,7 +967,11 @@ async def chat_about_dataset(
         str(dataset_id),
         str(current_user.id),
         str(current_user.tenant_id) if current_user.tenant_id else None,
-        details={"conversation_id": str(result["conversation_id"])},
+        details={
+            "conversation_id": str(result["conversation_id"]),
+            "injection_detected": injection is not None,
+            "injection_pattern": injection,
+        },
     )
 
     return ChatMessageResponse(
@@ -617,6 +980,173 @@ async def chat_about_dataset(
         model=result["model"],
         provider=result["provider"],
         usage=result["usage"],
+    )
+
+
+# ==================== Streaming Chat ====================
+
+class StreamChatMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=8000)
+    conversation_id: Optional[uuid.UUID] = None
+
+
+class StreamChatChunk(BaseModel):
+    content: str
+    done: bool
+    conversation_id: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+
+
+@router.post("/chat/stream/{dataset_id}")
+async def stream_chat_about_dataset(
+    dataset_id: uuid.UUID,
+    request: StreamChatMessageRequest,
+    http_request: Request,
+    current_user: User = Depends(require_verified),
+    engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
+):
+    """Stream chat with AI about a dataset with conversation memory."""
+    
+    # Rate limiting for AI chat (30 requests per minute per user)
+    await rate_limit_dependency("30/minute", "ai_chat", http_request)
+    
+    # Prompt injection detection
+    injection = detect_prompt_injection(request.message)
+    if injection:
+        await audit_logger.log(
+            "AI_CHAT_INJECTION_DETECTED",
+            "dataset",
+            str(dataset_id),
+            str(current_user.id),
+            str(current_user.tenant_id) if current_user.tenant_id else None,
+            details={"injection_pattern": injection, "message_preview": request.message[:200]},
+        )
+    
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    async def generate_stream():
+        try:
+            # Get comprehensive dataset context using ContextBuilder
+            context_builder = get_context_builder()
+            dataset_context = await context_builder.build_context(dataset_id, current_user, max_sample_rows=50)
+            max_context_tokens = 8000
+            context_text = context_builder.to_prompt_text(dataset_context, include_full=True, max_tokens=max_context_tokens)
+            
+            # Get or create conversation
+            memory = get_conversation_memory()
+            conv_id: str
+            if request.conversation_id:
+                conv_messages = await memory.get_recent_messages(request.conversation_id, current_user, count=20)
+                conv_id = str(request.conversation_id)
+            else:
+                conv = await memory.create_conversation(
+                    dataset_id=dataset_id,
+                    user=current_user,
+                    dataset_context=context_text,
+                )
+                conv_id = str(conv.id)
+            
+            # Build messages
+            messages = []
+            if request.conversation_id:
+                conv_messages = await memory.get_recent_messages(request.conversation_id, current_user, count=20)
+                for msg in conv_messages:
+                    messages.append(ChatMessage(role=MessageRole(msg.role), content=msg.content))
+            
+            system_content = f"""You are an expert AI Data Analyst. The user is asking questions about a dataset.
+            
+{context_text}
+            
+Instructions:
+- Use the dataset context above to answer questions accurately
+- Reference specific columns, statistics, and patterns from the context
+- If the user asks for analysis you cannot perform directly, explain what analysis would be needed
+- Be specific and actionable in your responses
+- If you detect data quality issues, mention them"""
+            messages.insert(0, ChatMessage(role=MessageRole.SYSTEM, content=system_content))
+            messages.append(ChatMessage(role=MessageRole.USER, content=request.message))
+            
+            # Stream from gateway
+            gateway = get_ai_gateway()
+            received_model = None
+            received_provider = None
+            
+            # Store user message
+            await memory.add_message(
+                conversation_id=conv_id,
+                role=MessageRole.USER,
+                content=request.message,
+                user=current_user,
+                model="",
+                provider="",
+                tokens_prompt=0,
+                tokens_completion=0,
+                duration_ms=0,
+                dataset_id=dataset_id,
+            )
+            
+            full_response = ""
+            
+            async for chunk in gateway.stream_chat(
+                messages=messages,
+                tenant_id=current_user.tenant_id,
+                user_id=current_user.id,
+            ):
+                if chunk.content:
+                    # Send chunk as SSE
+                    data = StreamChatChunk(
+                        content=chunk.content,
+                        done=False,
+                        conversation_id=conv_id,
+                        model=chunk.model,
+                        provider=chunk.provider.value,
+                    )
+                    yield f"data: {data.model_dump_json()}\n\n"
+                
+                if chunk.is_final:
+                    received_model = chunk.model
+                    received_provider = chunk.provider.value
+                    break
+            
+            # Store assistant message
+            await memory.add_message(
+                conversation_id=conv_id,
+                role=MessageRole.ASSISTANT,
+                content="",  # Content is streamed, stored in chunks
+                user=current_user,
+                model=received_model or "",
+                provider=received_provider or "",
+                tokens_prompt=0,
+                tokens_completion=0,
+                duration_ms=0,
+                dataset_id=dataset_id,
+            )
+            
+            # Send final chunk
+            final_data = StreamChatChunk(
+                content="",
+                done=True,
+                conversation_id=conv_id,
+                model=received_model,
+                provider=received_provider,
+            )
+            yield f"data: {final_data.model_dump_json()}\n\n"
+            yield "data: [DONE]\n\n"
+            
+        except Exception as e:
+            error_data = {"error": str(e)}
+            yield f"data: {json.dumps(error_data)}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

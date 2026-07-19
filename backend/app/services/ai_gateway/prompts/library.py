@@ -1184,6 +1184,443 @@ Create an executive summary with:
             )
         )
 
+        # ==================== PYTHON CODE GENERATION ====================
+
+        self._add_prompt(
+            PromptTemplate(
+                id="python_code_generation",
+                name="Python Code Generation",
+                description="Generate Python code for data analysis, visualization, and modeling",
+                category=PromptCategory.DATA_EXPLORATION,
+                variables=["dataset_profile", "task_description", "available_columns", "libraries"],
+                output_format=OutputFormat.PYTHON,
+                system_prompt="You are a Python data science expert. Generate clean, executable, well-documented code using pandas, numpy, matplotlib, seaborn, plotly, scikit-learn, statsmodels, and prophet.",
+                template="""Generate Python code for this data analysis task.
+
+## Dataset Profile
+{dataset_profile}
+
+## Task Description
+{task_description}
+
+## Available Columns
+{available_columns}
+
+## Preferred Libraries
+{libraries}
+
+Generate a complete Python script that:
+1. Loads the dataset (assume CSV path provided as variable)
+2. Performs the requested analysis
+3. Creates visualizations where appropriate
+4. Outputs results clearly
+5. Includes error handling and comments
+
+Return ONLY the Python code. No markdown, no explanation.
+Use this template structure:
+
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+# Add other imports as needed
+
+# Load data
+df = pd.read_csv('dataset_path.csv')  # Path will be provided at runtime
+
+# Your analysis code here
+```
+
+Best practices:
+- Use vectorized operations
+- Handle missing values appropriately
+- Add docstrings for functions
+- Include type hints where helpful
+- Save plots to files, don't just show()
+""",
+            )
+        )
+
+        self._add_prompt(
+            PromptTemplate(
+                id="python_analysis_pipeline",
+                name="Python Analysis Pipeline",
+                description="Generate a complete end-to-end analysis pipeline in Python",
+                category=PromptCategory.DATA_EXPLORATION,
+                variables=["dataset_profile", "analysis_goals", "available_columns", "target_column"],
+                output_format=OutputFormat.PYTHON,
+                system_prompt="You are a senior data scientist. Create production-ready analysis pipelines with proper structure, logging, and error handling.",
+                template="""Generate a complete Python analysis pipeline.
+
+## Dataset Profile
+{dataset_profile}
+
+## Analysis Goals
+{analysis_goals}
+
+## Available Columns
+{available_columns}
+
+## Target Column (if predictive)
+{target_column}
+
+Generate a complete, modular Python pipeline with:
+1. **Data Loading & Validation** - Load, validate schema, check quality
+2. **Exploratory Data Analysis** - Statistics, distributions, correlations
+3. **Data Cleaning** - Handle missing, outliers, type conversions
+4. **Feature Engineering** - Create derived features, encodings
+5. **Analysis/Modeling** - Statistical tests, ML models as appropriate
+6. **Visualization** - Key charts for insights
+7. **Reporting** - Summary output
+
+Structure as a class-based pipeline with config, logging, and clear separation of concerns.
+Return ONLY the Python code.
+""",
+            )
+        )
+
+        # ==================== DASHBOARD EXPLANATIONS ====================
+
+        self._add_prompt(
+            PromptTemplate(
+                id="dashboard_explanation",
+                name="Dashboard Explanation",
+                description="Explain dashboard charts, KPIs, and insights in plain language",
+                category=PromptCategory.DASHBOARD_GENERATION,
+                variables=["dashboard_spec", "dataset_profile", "audience"],
+                output_format=OutputFormat.MARKDOWN,
+                system_prompt="You are a BI expert explaining dashboards to business users. Be clear, actionable, and highlight key takeaways.",
+                template="""Explain this dashboard for a {audience} audience.
+
+## Dashboard Specification
+{dashboard_spec}
+
+## Dataset Profile
+{dataset_profile}
+
+Provide a clear explanation with:
+
+### 1. Dashboard Purpose
+What business questions does this dashboard answer?
+
+### 2. Key Metrics (KPIs) Explained
+For each KPI:
+- What it measures
+- Why it matters
+- What good/bad looks like
+- How to interpret trends
+
+### 3. Chart Walkthrough
+For each chart:
+- What it shows
+- Key patterns to look for
+- How to use filters/drill-downs
+
+### 4. How to Use This Dashboard
+- Recommended workflow
+- Key filters to try
+- Common questions it answers
+
+### 5. Data Freshness & Limitations
+- Refresh schedule
+- Known data issues
+- Assumptions made
+
+Write in plain language, avoid jargon. Use examples from the data.
+""",
+            )
+        )
+
+        self._add_prompt(
+            PromptTemplate(
+                id="chart_interpretation",
+                name="Chart Interpretation",
+                description="Interpret a specific chart and explain insights",
+                category=PromptCategory.CHART_RECOMMENDATION,
+                variables=["chart_config", "chart_data", "dataset_profile", "business_context"],
+                output_format=OutputFormat.MARKDOWN,
+                system_prompt="You are a data visualization expert. Explain charts clearly with actionable insights.",
+                template="""Interpret this chart and provide actionable insights.
+
+## Chart Configuration
+{chart_config}
+
+## Chart Data Summary
+{chart_data}
+
+## Dataset Profile
+{dataset_profile}
+
+## Business Context
+{business_context}
+
+Provide:
+
+### 1. What This Chart Shows
+Plain language description of the visualization
+
+### 2. Key Observations
+- 3-5 specific patterns, trends, or anomalies visible
+- Reference specific data points
+
+### 3. Business Implications
+- What this means for the business
+- Potential actions to consider
+
+### 4. Questions to Ask
+- Follow-up questions this chart raises
+- Additional analyses that would help
+
+### 5. Caveats
+- Data limitations affecting interpretation
+- Assumptions made
+""",
+            )
+        )
+
+        # ==================== BUSINESS INSIGHTS ====================
+
+        self._add_prompt(
+            PromptTemplate(
+                id="business_insights",
+                name="Business Insights Generation",
+                description="Generate deep business insights from data with strategic recommendations",
+                category=PromptCategory.DATA_EXPLORATION,
+                variables=["dataset_profile", "sample_data", "business_domain", "key_questions", "time_period"],
+                output_format=OutputFormat.JSON,
+                system_prompt="You are a senior business analyst. Generate insights that drive decisions, not just observations.",
+                template="""Generate deep business insights from this dataset.
+
+## Dataset Profile
+{dataset_profile}
+
+## Sample Data
+{sample_data}
+
+## Business Domain
+{business_domain}
+
+## Key Business Questions
+{key_questions}
+
+## Time Period
+{time_period}
+
+Return JSON with:
+{{
+  "insights": [
+    {{
+      "category": "revenue|customer|operations|product|marketing|finance|risk",
+      "title": "Short insight title",
+      "finding": "Detailed finding with specific numbers from the data",
+      "evidence": "Supporting data points, statistics, or patterns",
+      "impact": "high|medium|low",
+      "confidence": 0.0-1.0,
+      "recommendation": "Specific, actionable recommendation",
+      "priority": "immediate|short_term|strategic",
+      "estimated_impact": "Quantified impact if possible (e.g., revenue increase, cost savings)",
+      "owner": "Suggested team/role to own this",
+      "related_metrics": ["metric1", "metric2"]
+    }}
+  ],
+  "summary": "2-3 sentence executive summary",
+  "key_metrics_table": [
+    {{"metric": "...", "current": 0.0, "trend": "up|down|stable", "benchmark": 0.0}}
+  ],
+  "strategic_themes": ["theme1", "theme2", "theme3"]
+}}
+""",
+            )
+        )
+
+        # ==================== FORECASTING SUGGESTIONS ====================
+
+        self._add_prompt(
+            PromptTemplate(
+                id="forecasting_suggestions",
+                name="Forecasting Suggestions",
+                description="Recommend forecasting approaches, models, and configurations for a dataset",
+                category=PromptCategory.FORECASTING,
+                variables=["dataset_profile", "time_columns", "target_columns", "business_context", "forecast_horizon"],
+                output_format=OutputFormat.JSON,
+                system_prompt="You are a forecasting expert. Recommend appropriate methods based on data characteristics and business needs.",
+                template="""Recommend forecasting approaches for this dataset.
+
+## Dataset Profile
+{dataset_profile}
+
+## Time Columns Available
+{time_columns}
+
+## Target Columns to Forecast
+{target_columns}
+
+## Business Context
+{business_context}
+
+## Desired Forecast Horizon
+{forecast_horizon}
+
+Return JSON with:
+{{
+  "recommendations": [
+    {{
+      "target_column": "...",
+      "recommended_method": "prophet|arima|ets|linear|ml|ensemble",
+      "reason": "Why this method fits the data characteristics",
+      "seasonality": "daily|weekly|monthly|yearly|none",
+      "trend_type": "linear|exponential|damped|none",
+      "data_requirements": {{
+        "min_periods": 0,
+        "preferred_periods": 0,
+        "missing_data_tolerance": "low|medium|high"
+      }},
+      "configuration": {{
+        "changepoint_prior_scale": 0.05,
+        "seasonality_mode": "additive|multiplicative",
+        "interval_width": 0.95
+      }},
+      "validation_strategy": "time_series_split|rolling_window|expanding_window",
+      "expected_accuracy": "Qualitative assessment",
+      "caveats": ["caveat1", "caveat2"],
+      "alternative_methods": ["method1", "method2"]
+    }}
+  ],
+  "general_guidance": "Overall forecasting strategy recommendations",
+  "data_prep_steps": ["step1", "step2", "step3"]
+}}
+""",
+            )
+        )
+
+        # ==================== SQL GENERATION WITH EXECUTION ====================
+
+        self._add_prompt(
+            PromptTemplate(
+                id="sql_generation_with_execution",
+                name="SQL Generation with Execution Plan",
+                description="Generate SQL with execution preview and optimization hints",
+                category=PromptCategory.SQL_GENERATION,
+                variables=["question", "schema", "sample_data", "dialect", "performance_hints"],
+                output_format=OutputFormat.JSON,
+                system_prompt="You are a SQL expert. Generate optimized, safe queries with execution plans.",
+                template="""Generate SQL with execution preview for this question.
+
+## Question
+{question}
+
+## Database Schema
+{schema}
+
+## Sample Data
+{sample_data}
+
+## SQL Dialect
+{dialect}
+
+## Performance Hints
+{performance_hints}
+
+Return JSON with:
+{{
+  "sql": "SELECT query with comments",
+  "explanation": "Plain language explanation",
+  "is_safe": true,
+  "estimated_rows": 0,
+  "columns": ["col1", "col2"],
+  "execution_plan": {{
+    "estimated_cost": "low|medium|high",
+    "indexes_used": ["index1", "index2"],
+    "full_table_scans": ["table1"],
+    "joins": [{{"type": "hash|merge|nested_loop", "tables": ["t1", "t2"]}}],
+    "optimization_suggestions": ["suggestion1", "suggestion2"]
+  }},
+  "safety_checks": {{
+    "has_limit": true,
+    "no_write_operations": true,
+    "no_dangerous_functions": true
+  }},
+  "parameterized_version": "Query with placeholders for parameters"
+}}
+""",
+            )
+        )
+
+        # ==================== PYTHON CODE FOR SPECIFIC TASKS ====================
+
+        self._add_prompt(
+            PromptTemplate(
+                id="python_visualization_code",
+                name="Python Visualization Code",
+                description="Generate Python code for specific chart types",
+                category=PromptCategory.CHART_RECOMMENDATION,
+                variables=["chart_type", "dataset_profile", "columns", "chart_config"],
+                output_format=OutputFormat.PYTHON,
+                system_prompt="You are a Python visualization expert. Generate clean, publication-ready charts using matplotlib, seaborn, or plotly.",
+                template="""Generate Python code to create this visualization.
+
+## Chart Type
+{chart_type}
+
+## Dataset Profile
+{dataset_profile}
+
+## Columns to Use
+{columns}
+
+## Chart Configuration
+{chart_config}
+
+Generate complete Python code that:
+1. Loads the data
+2. Prepares/transforms data for the chart
+3. Creates the visualization with proper styling
+4. Saves to file
+5. Includes accessibility considerations (colorblind-safe palettes, labels)
+
+Use matplotlib/seaborn for static, plotly for interactive.
+Return ONLY the Python code.
+""",
+            )
+        )
+
+        self._add_prompt(
+            PromptTemplate(
+                id="python_statistical_analysis",
+                name="Python Statistical Analysis",
+                description="Generate Python code for statistical tests and analysis",
+                category=PromptCategory.DATA_EXPLORATION,
+                variables=["analysis_type", "dataset_profile", "columns", "hypothesis"],
+                output_format=OutputFormat.PYTHON,
+                system_prompt="You are a statistician. Generate rigorous statistical analysis code with proper tests, assumptions checking, and interpretation.",
+                template="""Generate Python code for this statistical analysis.
+
+## Analysis Type
+{analysis_type}
+
+## Dataset Profile
+{dataset_profile}
+
+## Columns to Analyze
+{columns}
+
+## Hypothesis / Research Question
+{hypothesis}
+
+Generate code that:
+1. Checks assumptions for the test
+2. Performs the appropriate statistical test
+3. Reports effect sizes and confidence intervals
+4. Provides clear interpretation
+5. Creates relevant visualizations (QQ plots, residuals, etc.)
+
+Common analyses: t-test, ANOVA, chi-square, correlation, regression, Mann-Whitney, Kruskal-Wallis, normality tests, etc.
+Return ONLY the Python code.
+""",
+            )
+        )
+
     def _add_prompt(self, prompt: PromptTemplate) -> None:
         """Add a prompt to the library."""
         self._prompts[prompt.id] = prompt
