@@ -3,17 +3,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { 
   Bot, 
-  Loader2, 
   Send, 
   Copy, 
-  Check, 
   RotateCcw,
   Trash2,
   Download,
   Sparkles,
   BarChart,
-  Search,
-  Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -29,7 +25,7 @@ import { useDatasets } from "@/hooks/use-api";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/utils/cn";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { TypingIndicator, StreamingMessage } from "@/components/ui/typing-indicator";
+import { StreamingMessage } from "@/components/ui/typing-indicator";
 
 interface Message {
   id: string;
@@ -97,11 +93,16 @@ export function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainerRef.current;
+    if (container) {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -131,9 +132,6 @@ export function ChatPage() {
 
   const regenerateMessage = async (messageIndex: number) => {
     if (messageIndex === 0) return; // Can't regenerate first message if it's user
-    
-    const userMessages = messages.filter(m => m.role === "user");
-    const assistantMessages = messages.filter(m => m.role === "assistant");
     
     if (messageIndex >= messages.length) return;
     
@@ -199,11 +197,13 @@ export function ChatPage() {
     setShowSuggestions(false);
     setError(null);
 
+    let assistantMsgId: string | undefined;
+
     try {
       const stream = api.streamChatAboutDataset(datasetId, userMsg.content, conversationId || undefined);
       
       // Add placeholder for streaming response
-      const assistantMsgId = crypto.randomUUID();
+      assistantMsgId = crypto.randomUUID();
       setMessages((prev) => [...prev, {
         id: assistantMsgId,
         role: "assistant",
@@ -274,7 +274,7 @@ export function ChatPage() {
 
   return (
     <TooltipProvider>
-      <div className="page-container flex h-[calc(100vh-4rem)] flex-col gap-4">
+      <div className="page-container flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="page-title">AI Chat</h1>
@@ -316,10 +316,10 @@ export function ChatPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <div className="flex min-h-0 flex-1 overflow-hidden flex-col gap-4 lg:flex-row">
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-              <div className="flex-1 space-y-4 overflow-y-auto p-6">
+              <div ref={scrollContainerRef} className="flex-1 min-h-0 space-y-4 overflow-y-auto p-6">
                 {messages.length === 0 && (
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <div className="flex size-16 items-center justify-center rounded-2xl bg-accent/30">
@@ -440,7 +440,7 @@ export function ChatPage() {
                   </div>
                 )}
 
-                <div ref={messagesEndRef} />
+                <div className="h-0" />
               </div>
 
               <div className="border-t border-border p-4">
@@ -494,7 +494,7 @@ export function ChatPage() {
             </CardContent>
           </Card>
 
-          <Card className="w-full shrink-0 lg:w-80">
+          <Card className="w-full shrink-0 overflow-hidden lg:w-80">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2">
                 <BarChart className="size-5" />
@@ -548,7 +548,7 @@ export function ChatPage() {
                     <div className="bg-background/50 p-2 rounded">
                       <div className="text-muted">Type</div>
                       <div className="font-semibold capitalize">
-                        {selectedDataset.mime_type.split("/").pop()?.toUpperCase()}
+                        {selectedDataset.mime_type?.split("/").pop()?.toUpperCase() ?? "—"}
                       </div>
                     </div>
                   </div>

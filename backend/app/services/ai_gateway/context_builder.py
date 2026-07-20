@@ -17,8 +17,9 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
+from sqlalchemy import select
+
 from app.core.config import settings
-from app.core.database import get_session
 from app.models.dataset import Dataset
 from app.models.user import User
 from app.services.data_loader import (
@@ -30,6 +31,7 @@ from app.services.data_loader import (
     compute_correlations,
     compute_distributions,
     compute_statistics,
+    detect_column_type,
 )
 
 # Prompt injection patterns for data sanitization
@@ -198,9 +200,8 @@ class ContextBuilder:
         """Get database session."""
         if self.db:
             return self.db
-        async for session in get_session():
-            return session
-        raise RuntimeError("No database session available")
+        from app.core.database import async_session_factory
+        return async_session_factory()
     
 
     
@@ -241,7 +242,7 @@ class ContextBuilder:
         db = await self._get_db()
         
         result = await db.execute(
-            Dataset.__table__.select().where(
+            select(Dataset).where(
                 Dataset.id == dataset_id,
                 Dataset.is_deleted == False
             )

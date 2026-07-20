@@ -1,3 +1,17 @@
+import json
+import math
+import uuid
+from datetime import UTC, datetime
+
+import numpy as np
+from fastapi import Depends, HTTPException, status
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_session
+from app.core.security.exceptions import AppException
+from app.models import AnalysisResult, AnalysisRun, DataProfile, Dataset, User
+
 from app.services.data_loader import (
     load_dataframe,
     infer_column_dtype,
@@ -5,6 +19,8 @@ from app.services.data_loader import (
     compute_top_values,
     coerce_numeric,
 )
+
+_load_dataframe = load_dataframe
 
 
 class AnalyticsService:

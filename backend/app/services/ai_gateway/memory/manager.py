@@ -16,7 +16,6 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_session
 from app.models.conversation import ConversationModel, ConversationMessageModel
 from app.models.dataset import Dataset
 from app.models.user import User
@@ -126,9 +125,8 @@ class ConversationMemory:
         """Get database session."""
         if self.db:
             return self.db
-        async for session in get_session():
-            return session
-        raise RuntimeError("No database session available")
+        from app.core.database import async_session_factory
+        return async_session_factory()
 
     def _model_to_conversation(self, model: ConversationModel) -> Conversation:
         """Convert database model to domain model."""
@@ -203,7 +201,7 @@ class ConversationMemory:
         )
 
         db.add(conversation_model)
-        await db.flush()
+        await db.commit()
 
         return self._model_to_conversation(conversation_model)
 
@@ -292,7 +290,7 @@ class ConversationMemory:
 
         model.status = ConversationStatus.DELETED
         model.updated_at = datetime.now(UTC)
-        await db.flush()
+        await db.commit()
         return True
 
     async def archive_conversation(
@@ -314,7 +312,7 @@ class ConversationMemory:
 
         model.status = ConversationStatus.ARCHIVED
         model.updated_at = datetime.now(UTC)
-        await db.flush()
+        await db.commit()
         return True
 
     # Message management
@@ -381,7 +379,7 @@ class ConversationMemory:
         conv_model.last_message_at = datetime.now(UTC)
         conv_model.updated_at = datetime.now(UTC)
 
-        await db.flush()
+        await db.commit()
 
         return self._model_to_message(message_model)
 

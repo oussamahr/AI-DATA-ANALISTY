@@ -105,6 +105,8 @@ class AIGateway:
         tools: Optional[list[dict[str, Any]]] = None,
         provider_type: Optional[ProviderType] = None,
         model: Optional[str] = None,
+        tenant_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> AsyncGenerator[StreamChunk, None]:
         """Stream a chat completion."""
         config = config or self.default_config
@@ -114,6 +116,8 @@ class AIGateway:
             tools=tools,
             provider_type=provider_type,
             model=model,
+            tenant_id=tenant_id,
+            user_id=user_id,
         ):
             yield chunk
 

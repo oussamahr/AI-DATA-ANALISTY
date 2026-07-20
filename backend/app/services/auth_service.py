@@ -44,6 +44,7 @@ class AuthService:
             hashed_password=hash_password(data.password),
             first_name=data.first_name,
             last_name=data.last_name,
+            is_verified=True,
         )
         self.db.add(user)
         await self.db.flush()

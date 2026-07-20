@@ -9,12 +9,12 @@ import uuid
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.dependencies import get_current_user, require_verified
+from app.core.dependencies import get_current_user
 from app.core.security.audit import audit_logger
 from app.core.security.exceptions import AppException
 from app.core.security.rate_limit import rate_limit_dependency
@@ -29,6 +29,7 @@ from app.services.ai_gateway import (
     get_ai_gateway,
 )
 from app.services.ai_gateway.analytics import AIAnalyticsEngine, get_ai_analytics_engine
+from app.services.ai_gateway.context_builder import get_context_builder
 from app.services.ai_gateway.memory import ConversationMemory, get_conversation_memory
 from app.services.ai_gateway.prompts import PromptLibrary, get_prompt_library
 
@@ -365,7 +366,7 @@ class ProviderStatusResponse(BaseModel):
 async def profile_dataset(
     dataset_id: uuid.UUID,
     request: ProfileDatasetRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate comprehensive dataset profile (smart analysis on upload)."""
@@ -402,7 +403,7 @@ async def profile_dataset(
 @router.get("/quality/{dataset_id}", response_model=DataQualityResponse)
 async def assess_data_quality(
     dataset_id: uuid.UUID,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Assess data quality with detailed scoring and issues."""
@@ -437,7 +438,7 @@ async def assess_data_quality(
 async def generate_insights(
     dataset_id: uuid.UUID,
     max_insights: int = Query(10, ge=1, le=50),
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate intelligent, ranked insights for a dataset."""
@@ -465,7 +466,7 @@ async def generate_insights(
 @router.get("/cleaning/plan/{dataset_id}", response_model=CleaningPlanRequest)
 async def suggest_cleaning_plan(
     dataset_id: uuid.UUID,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate executable data cleaning plan."""
@@ -483,7 +484,7 @@ async def suggest_cleaning_plan(
 async def execute_cleaning_plan(
     dataset_id: uuid.UUID,
     plan: CleaningPlanRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Execute a data cleaning plan (one-click cleaning)."""
@@ -516,7 +517,7 @@ async def execute_cleaning_plan(
 async def forecast(
     dataset_id: uuid.UUID,
     request: ForecastRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate time series forecast."""
@@ -554,7 +555,7 @@ async def forecast(
 @router.get("/anomalies/{dataset_id}", response_model=AnomalyResponse)
 async def detect_anomalies(
     dataset_id: uuid.UUID,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Detect anomalies, outliers, and fraud indicators."""
@@ -610,7 +611,7 @@ async def recommend_charts(
 async def natural_language_query(
     dataset_id: uuid.UUID,
     request: NLQueryRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Convert natural language to safe SQL."""
@@ -652,7 +653,7 @@ async def explain_sql(
 async def generate_report(
     dataset_id: uuid.UUID,
     request: ReportRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate executive, technical, or business report."""
@@ -688,7 +689,7 @@ async def generate_report(
 async def generate_dashboard(
     dataset_id: uuid.UUID,
     request: DashboardRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate complete dashboard specification."""
@@ -725,7 +726,7 @@ async def generate_dashboard(
 async def generate_python_code(
     dataset_id: uuid.UUID,
     request: PythonCodeRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate Python code for data analysis task."""
@@ -747,7 +748,7 @@ async def generate_python_code(
 async def generate_analysis_pipeline(
     dataset_id: uuid.UUID,
     request: AnalysisPipelineRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate complete end-to-end analysis pipeline in Python."""
@@ -769,7 +770,7 @@ async def generate_analysis_pipeline(
 async def generate_visualization_code(
     dataset_id: uuid.UUID,
     request: VisualizationCodeRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate Python code for specific visualization."""
@@ -791,7 +792,7 @@ async def generate_visualization_code(
 async def generate_statistical_analysis_code(
     dataset_id: uuid.UUID,
     request: StatisticalAnalysisRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate Python code for statistical analysis."""
@@ -815,7 +816,7 @@ async def generate_statistical_analysis_code(
 async def generate_sql_with_execution(
     dataset_id: uuid.UUID,
     request: NLQueryRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate SQL with execution plan and safety checks."""
@@ -839,7 +840,7 @@ async def generate_sql_with_execution(
 async def explain_dashboard(
     dataset_id: uuid.UUID,
     request: DashboardExplainRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Explain dashboard in plain language for business users."""
@@ -860,7 +861,7 @@ async def explain_dashboard(
 async def interpret_chart(
     dataset_id: uuid.UUID,
     request: ChartInterpretRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Interpret a specific chart and provide insights."""
@@ -883,7 +884,7 @@ async def interpret_chart(
 async def generate_business_insights(
     dataset_id: uuid.UUID,
     request: BusinessInsightsRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Generate deep business insights with strategic recommendations."""
@@ -907,7 +908,7 @@ async def generate_business_insights(
 async def suggest_forecasting_approach(
     dataset_id: uuid.UUID,
     request: ForecastingSuggestionsRequest,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Recommend forecasting approaches for the dataset."""
@@ -932,7 +933,7 @@ async def chat_about_dataset(
     dataset_id: uuid.UUID,
     request: ChatMessageRequest,
     http_request: Request,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Chat with AI about a dataset with conversation memory."""
@@ -1003,7 +1004,7 @@ async def stream_chat_about_dataset(
     dataset_id: uuid.UUID,
     request: StreamChatMessageRequest,
     http_request: Request,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     engine: AIAnalyticsEngine = Depends(get_ai_analytics_engine),
 ):
     """Stream chat with AI about a dataset with conversation memory."""
@@ -1036,24 +1037,24 @@ async def stream_chat_about_dataset(
             
             # Get or create conversation
             memory = get_conversation_memory()
-            conv_id: str
+            conv_id: uuid.UUID
+            conv_messages: list = []
             if request.conversation_id:
-                conv_messages = await memory.get_recent_messages(request.conversation_id, current_user, count=20)
-                conv_id = str(request.conversation_id)
+                conv_id = request.conversation_id
+                conv_messages = await memory.get_recent_messages(conv_id, current_user, count=20)
             else:
                 conv = await memory.create_conversation(
                     dataset_id=dataset_id,
                     user=current_user,
                     dataset_context=context_text,
                 )
-                conv_id = str(conv.id)
+                conv_id = conv.id
+            conv_id_str = str(conv_id)
             
             # Build messages
             messages = []
-            if request.conversation_id:
-                conv_messages = await memory.get_recent_messages(request.conversation_id, current_user, count=20)
-                for msg in conv_messages:
-                    messages.append(ChatMessage(role=MessageRole(msg.role), content=msg.content))
+            for msg in conv_messages:
+                messages.append(ChatMessage(role=MessageRole(msg.role), content=msg.content))
             
             system_content = f"""You are an expert AI Data Analyst. The user is asking questions about a dataset.
             
@@ -1099,7 +1100,7 @@ Instructions:
                     data = StreamChatChunk(
                         content=chunk.content,
                         done=False,
-                        conversation_id=conv_id,
+                        conversation_id=conv_id_str,
                         model=chunk.model,
                         provider=chunk.provider.value,
                     )
@@ -1128,7 +1129,7 @@ Instructions:
             final_data = StreamChatChunk(
                 content="",
                 done=True,
-                conversation_id=conv_id,
+                conversation_id=conv_id_str,
                 model=received_model,
                 provider=received_provider,
             )
@@ -1254,7 +1255,7 @@ async def provider_status(
 @router.post("/providers/switch")
 async def switch_provider(
     provider: str,
-    current_user: User = Depends(require_verified),
+    current_user: User = Depends(get_current_user),
     gateway: AIGateway = Depends(get_ai_gateway),
 ):
     """Manually switch AI provider."""

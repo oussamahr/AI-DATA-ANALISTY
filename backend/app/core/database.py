@@ -22,6 +22,7 @@ class Base(DeclarativeBase):
 
 
 async def get_session() -> AsyncSession:
+    """FastAPI dependency — yields a session and handles commit/rollback/close."""
     async with async_session_factory() as session:
         try:
             yield session
@@ -31,3 +32,8 @@ async def get_session() -> AsyncSession:
             raise
         finally:
             await session.close()
+
+
+async def get_db() -> AsyncSession:
+    """Return a new session directly (caller manages lifecycle)."""
+    return async_session_factory()

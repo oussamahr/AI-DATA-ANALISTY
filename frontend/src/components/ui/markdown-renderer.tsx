@@ -3,6 +3,7 @@
 import React from "react";
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
+import DOMPurify from "dompurify";
 
 interface MarkdownRendererProps {
   content: string;
@@ -44,6 +45,8 @@ const processInlineFormatting = (text: string): string => {
   result = renderStrikethrough(result);
   return result;
 };
+
+const html = (text: string) => ({ __html: DOMPurify.sanitize(processInlineFormatting(text)) });
 
 const CodeBlock: React.FC<{ 
   code: string; 
@@ -103,7 +106,7 @@ const Table: React.FC<{
           <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-background" : "bg-muted/30"}>
             {row.map((cell, cellIndex) => (
               <td key={cellIndex} className="px-3 py-2 text-sm">
-                {processInlineFormatting(cell)}
+                <span dangerouslySetInnerHTML={html(cell)} />
               </td>
             ))}
           </tr>
@@ -161,11 +164,11 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
 
     // Headers
     if (trimmed.startsWith("# ")) {
-      nodes.push(<h1 key={nodes.length} className="text-2xl font-bold mt-6 mb-3">{processInlineFormatting(trimmed.slice(2))}</h1>);
+      nodes.push(<h1 key={nodes.length} className="text-2xl font-bold mt-6 mb-3"><span dangerouslySetInnerHTML={html(trimmed.slice(2))} /></h1>);
     } else if (trimmed.startsWith("## ")) {
-      nodes.push(<h2 key={nodes.length} className="text-xl font-semibold mt-5 mb-2">{processInlineFormatting(trimmed.slice(3))}</h2>);
+      nodes.push(<h2 key={nodes.length} className="text-xl font-semibold mt-5 mb-2"><span dangerouslySetInnerHTML={html(trimmed.slice(3))} /></h2>);
     } else if (trimmed.startsWith("### ")) {
-      nodes.push(<h3 key={nodes.length} className="text-lg font-medium mt-4 mb-2">{processInlineFormatting(trimmed.slice(4))}</h3>);
+      nodes.push(<h3 key={nodes.length} className="text-lg font-medium mt-4 mb-2"><span dangerouslySetInnerHTML={html(trimmed.slice(4))} /></h3>);
     }
     // Unordered lists
     else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
@@ -178,7 +181,7 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
       nodes.push(
         <ul key={nodes.length} className="list-disc list-inside space-y-1 ml-4 mb-3">
           {listItems.map((item, idx) => (
-            <li key={idx} className="text-sm">{processInlineFormatting(item)}</li>
+            <li key={idx} className="text-sm"><span dangerouslySetInnerHTML={html(item)} /></li>
           ))}
         </ul>
       );
@@ -195,7 +198,7 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
       nodes.push(
         <ol key={nodes.length} className="list-decimal list-inside space-y-1 ml-4 mb-3">
           {listItems.map((item, idx) => (
-            <li key={idx} className="text-sm">{processInlineFormatting(item)}</li>
+            <li key={idx} className="text-sm"><span dangerouslySetInnerHTML={html(item)} /></li>
           ))}
         </ol>
       );
@@ -212,7 +215,7 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
       nodes.push(
         <blockquote key={nodes.length} className="border-l-4 border-primary pl-4 italic text-muted-foreground my-3">
           {quoteLines.map((line, idx) => (
-            <div key={idx}>{processInlineFormatting(line)}</div>
+            <div key={idx} dangerouslySetInnerHTML={html(line)} />
           ))}
         </blockquote>
       );
@@ -226,7 +229,7 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
     else if (trimmed) {
       nodes.push(
         <p key={nodes.length} className="text-sm leading-relaxed mb-3">
-          {processInlineFormatting(trimmed)}
+          <span dangerouslySetInnerHTML={html(trimmed)} />
         </p>
       );
     }
@@ -241,6 +244,17 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
   return (
     <div className={`prose prose-sm max-w-none ${className}`}>
       {parseMarkdown(content)}
+      <style>{`
+        .inline-code {
+          background-color: var(--color-muted);
+          color: var(--color-foreground);
+          padding: 0.125rem 0.375rem;
+          border-radius: 0.25rem;
+          font-family: ui-monospace, monospace;
+          font-size: 0.8125rem;
+          border: 1px solid var(--color-border);
+        }
+      `}</style>
     </div>
   );
 }

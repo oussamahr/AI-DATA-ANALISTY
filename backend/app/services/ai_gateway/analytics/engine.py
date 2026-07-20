@@ -20,7 +20,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_session
 from app.core.security.exceptions import AppException
 from app.models.dataset import Dataset
 from app.models.user import User
@@ -225,9 +224,8 @@ class AIAnalyticsEngine:
         """Get database session."""
         if self.db:
             return self.db
-        async for session in get_session():
-            return session
-        raise RuntimeError("No database session available")
+        from app.core.database import async_session_factory
+        return async_session_factory()
 
     async def _get_dataset(self, dataset_id: UUID, user: User) -> Dataset:
         """Get dataset with access check."""
@@ -545,7 +543,7 @@ class AIAnalyticsEngine:
             completed_at=datetime.now(UTC),
         )
         db.add(run)
-        await db.flush()
+        await db.commit()
 
         result = AnalysisResult(
             id=uuid.uuid4(),
@@ -556,7 +554,7 @@ class AIAnalyticsEngine:
             metadata={"auto_generated": True},
         )
         db.add(result)
-        await db.flush()
+        await db.commit()
 
     # ==================== DATA QUALITY ENGINE ====================
 
