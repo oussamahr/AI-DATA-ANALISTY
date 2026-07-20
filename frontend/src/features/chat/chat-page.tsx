@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
-import { 
-  Bot, 
-  Send, 
-  Copy, 
+import { useState, useCallback, useRef, useEffect, memo } from "react";
+import {
+  Bot,
+  Send,
+  Copy,
   RotateCcw,
   Trash2,
   Download,
   Sparkles,
   BarChart,
+  Square,
+  ChevronDown,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +27,8 @@ import { useDatasets } from "@/hooks/use-api";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/utils/cn";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { StreamingMessage } from "@/components/ui/typing-indicator";
+import { StreamingCursor } from "@/components/ui/typing-indicator";
+import { useChatScroll } from "@/hooks/use-chat-scroll";
 
 interface Message {
   id: string;
@@ -84,30 +87,385 @@ const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   },
 ];
 
+// ─── Memoized Chat Message ──────────────────────────────────────────
+
+interface ChatMessageProps {
+  message: Message;
+  index?: number;
+  onCopy: (content: string) => void;
+  onRegenerate?: (index: number) => void;
+  isLastStreaming?: boolean;
+}
+
+const ChatMessage = memo(function ChatMessage({
+  message,
+  index,
+  onCopy,
+  onRegenerate,
+  isLastStreaming = false,
+}: ChatMessageProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+    >
+      <div
+        className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+          message.role === "user"
+            ? "bg-primary text-white"
+            : "border border-border bg-muted-surface/50 text-foreground"
+        }`}
+      >
+        {message.role === "assistant" ? (
+          <>
+            <div className="min-h-[1em]">
+              <MarkdownRenderer content={message.content} />
+              {isLastStreaming && <StreamingCursor />}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {(message.model || message.provider) && (
+                <div className="flex flex-wrap gap-1">
+                  {message.model && (
+                    <Badge variant="secondary" className="text-xs">
+                      {message.model}
+                    </Badge>
+                  )}
+                  {message.provider && (
+                    <Badge variant="outline" className="text-xs">
+                      {message.provider}
+                    </Badge>
+                  )}
+                </div>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
+                    <span className="sr-only">Message actions</span>
+                    <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="1" />
+                      <circle cx="19" cy="12" r="1" />
+                      <circle cx="5" cy="12" r="1" />
+                    </svg>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[160px]">
+                  <DropdownMenuItem
+                    onClick={() => onCopy(message.content)}
+                    className="flex items-center gap-2"
+                  >
+                    <Copy className="size-4" />
+                    Copy
+                  </DropdownMenuItem>
+                  {!isLastStreaming && onRegenerate !== undefined && index !== undefined && (
+                    <DropdownMenuItem
+                      onClick={() => onRegenerate(index)}
+                      className="flex items-center gap-2"
+                    >
+                      <RotateCcw className="size-4" />
+                      Regenerate
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </>
+        ) : (
+          <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+        )}
+      </div>
+    </motion.div>
+  );
+});
+
+// ─── Chat Page ──────────────────────────────────────────────────────
+
 export function ChatPage() {
   const { data: datasetsData } = useDatasets(1, 100);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [streamingMsg, setStreamingMsg] = useState<Message | null>(null);
   const [prompt, setPrompt] = useState("");
   const [datasetId, setDatasetId] = useState<string>("none");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const scrollToBottom = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      requestAnimationFrame(() => {
-        container.scrollTop = container.scrollHeight;
-      });
-    }
+  // Mutable ref for streaming state — never causes re-renders
+  const streamingRef = useRef({
+    msgId: "",
+    buffer: "",
+    fullContent: "",
+    model: undefined as string | undefined,
+    provider: undefined as string | undefined,
+    convId: undefined as string | undefined,
+    rAFId: 0,
+    isCancelled: false,
+  });
+
+  // ── Smart scroll ──────────────────────────────────────────────────
+  const { containerRef, showScrollButton, scrollToBottom } = useChatScroll([
+    messages.length,
+    streamingMsg?.content,
+    isStreaming,
+  ]);
+
+  // ── Cleanup rAF on unmount ────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (streamingRef.current.rAFId) {
+        cancelAnimationFrame(streamingRef.current.rAFId);
+      }
+    };
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isStreaming, scrollToBottom]);
+  // ── Batched streaming update ──────────────────────────────────────
+  // Flushes the token buffer to React state once per animation frame.
+  // This prevents a React render cycle on every single token.
+  const flushToState = useCallback(() => {
+    const s = streamingRef.current;
+    if (s.buffer && !s.isCancelled) {
+      setStreamingMsg((prev) => ({
+        id: s.msgId,
+        role: "assistant",
+        content: (prev?.content || "") + s.buffer,
+        isStreaming: true,
+        model: s.model,
+        provider: s.provider,
+      }));
+      s.buffer = "";
+    }
+    s.rAFId = 0;
+  }, []);
+
+  // Appends a token to the buffer and schedules a flush via rAF.
+  // The fullContent ref is updated synchronously so the final message
+  // is always complete regardless of buffer state.
+  const addToken = useCallback(
+    (token: string) => {
+      const s = streamingRef.current;
+      s.fullContent += token;
+      s.buffer += token;
+      if (!s.rAFId) {
+        s.rAFId = requestAnimationFrame(flushToState);
+      }
+    },
+    [flushToState],
+  );
+
+  // ── Cancel streaming ──────────────────────────────────────────────
+  const cancelStream = useCallback(() => {
+    const s = streamingRef.current;
+    s.isCancelled = true;
+    if (s.rAFId) {
+      cancelAnimationFrame(s.rAFId);
+      s.rAFId = 0;
+    }
+    // Keep whatever was generated so far
+    setStreamingMsg(null);
+    if (s.fullContent) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: s.msgId,
+          role: "assistant" as const,
+          content: s.fullContent,
+          isStreaming: false,
+          model: s.model,
+          provider: s.provider,
+        },
+      ]);
+    }
+    abortControllerRef.current?.abort();
+    setIsStreaming(false);
+    abortControllerRef.current = null;
+  }, []);
+
+  // ── Send message with streaming ───────────────────────────────────
+  const sendMessageWithContent = useCallback(
+    async (content: string) => {
+      if (!content.trim() || isStreaming) return;
+      if (datasetId === "none") {
+        setError("Please select a dataset to chat about");
+        return;
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const userMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: content.trim(),
+      };
+
+      const assistantMsgId = crypto.randomUUID();
+
+      // Reset streaming state
+      const s = streamingRef.current;
+      s.msgId = assistantMsgId;
+      s.buffer = "";
+      s.fullContent = "";
+      s.model = undefined;
+      s.provider = undefined;
+      s.convId = undefined;
+      s.rAFId = 0;
+      s.isCancelled = false;
+
+      // Add user message + placeholder assistant message
+      setMessages((prev) => [...prev, userMsg]);
+      setStreamingMsg({
+        id: assistantMsgId,
+        role: "assistant",
+        content: "",
+        isStreaming: true,
+      });
+      setIsStreaming(true);
+      setShowSuggestions(false);
+      setError(null);
+
+      let receivedConversationId: string | undefined;
+      let receivedModel: string | undefined;
+      let receivedProvider: string | undefined;
+
+      try {
+        const stream = api.streamChatAboutDataset(
+          datasetId,
+          userMsg.content,
+          conversationId || undefined,
+          controller.signal,
+        );
+
+        for await (const chunk of stream) {
+          if (controller.signal.aborted || streamingRef.current.isCancelled) break;
+
+          if (chunk.conversation_id && !receivedConversationId) {
+            receivedConversationId = chunk.conversation_id;
+          }
+          if (chunk.model) receivedModel = chunk.model;
+          if (chunk.provider) receivedProvider = chunk.provider;
+
+          if (chunk.content) {
+            addToken(chunk.content);
+          }
+          if (chunk.done) break;
+        }
+
+        // ── Finalize ──────────────────────────────────────────────
+        const finalS = streamingRef.current;
+        if (!finalS.isCancelled) {
+          if (finalS.rAFId) {
+            cancelAnimationFrame(finalS.rAFId);
+            finalS.rAFId = 0;
+          }
+
+          // Apply any remaining buffered tokens
+          if (finalS.buffer) {
+            setStreamingMsg((prev) => ({
+              id: finalS.msgId,
+              role: "assistant",
+              content: (prev?.content || "") + finalS.buffer,
+              isStreaming: false,
+              model: receivedModel || finalS.model,
+              provider: receivedProvider || finalS.provider,
+            }));
+            finalS.buffer = "";
+          }
+
+          // Move the streaming message into the completed messages list
+          setStreamingMsg(null);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: finalS.msgId,
+              role: "assistant",
+              content: finalS.fullContent,
+              isStreaming: false,
+              model: receivedModel || finalS.model,
+              provider: receivedProvider || finalS.provider,
+            },
+          ]);
+
+          if (!conversationId && receivedConversationId) {
+            setConversationId(receivedConversationId);
+          }
+        }
+      } catch (err) {
+        // ── Error handling ────────────────────────────────────────
+        // On network interruption or server error, we keep whatever
+        // content was generated so the user doesn't lose their response.
+        if (!streamingRef.current.isCancelled) {
+          const errS = streamingRef.current;
+          if (errS.rAFId) {
+            cancelAnimationFrame(errS.rAFId);
+            errS.rAFId = 0;
+          }
+          setStreamingMsg(null);
+
+          if (errS.fullContent) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: errS.msgId,
+                role: "assistant",
+                content: errS.fullContent,
+                isStreaming: false,
+                model: errS.model,
+                provider: errS.provider,
+              },
+            ]);
+          }
+
+          setError(`Stream interrupted: ${getErrorMessage(err)}`);
+        }
+      } finally {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+      }
+    },
+    [datasetId, conversationId, isStreaming, addToken],
+  );
+
+  // ── Refs for stable callbacks ──────────────────────────────────────
+
+  const regenerateMessage = useCallback(
+    async (messageIndex: number) => {
+      if (messageIndex === 0 || messageIndex >= messages.length) return;
+      const targetMsg = messages[messageIndex];
+      if (targetMsg.role !== "assistant") return;
+
+      const userMsgIndex = messages.findIndex((m, i) =>
+        i < messageIndex && m.role === "user" &&
+        messages.slice(i + 1, messageIndex).every((m) => m.role === "assistant"),
+      );
+      if (userMsgIndex === -1) return;
+
+      const userMsg = messages[userMsgIndex];
+      setMessages((prev) => prev.slice(0, userMsgIndex + 1));
+      await sendMessageWithContent(userMsg.content);
+    },
+    [messages, sendMessageWithContent],
+  );
+
+  // Stable function refs so memoised ChatMessage doesn't re-render
+  const copyMessage = useCallback(async (content: string) => {
+    await navigator.clipboard.writeText(content);
+  }, []);
+
+  const regenerateRef = useRef(regenerateMessage);
+  regenerateRef.current = regenerateMessage;
+
+  const handleRegenerate = useCallback((index: number) => {
+    regenerateRef.current(index);
+  }, []);
+
+  // ── Utilities ─────────────────────────────────────────────────────
+
+  const sendMessage = useCallback(async () => {
+    await sendMessageWithContent(prompt);
+  }, [sendMessageWithContent, prompt]);
 
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
@@ -120,55 +478,37 @@ export function ChatPage() {
     adjustTextareaHeight();
   }, [prompt]);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
   const clearConversation = () => {
     setMessages([]);
+    setStreamingMsg(null);
     setConversationId(null);
     setShowSuggestions(true);
   };
 
-  const copyMessage = async (content: string) => {
-    await navigator.clipboard.writeText(content);
-  };
-
-  const regenerateMessage = async (messageIndex: number) => {
-    if (messageIndex === 0) return; // Can't regenerate first message if it's user
-    
-    if (messageIndex >= messages.length) return;
-    
-    const targetMsg = messages[messageIndex];
-    if (targetMsg.role !== "assistant") return;
-
-    // Find the corresponding user message
-    const userMsgIndex = messages.findIndex((m, i) => 
-      i < messageIndex && m.role === "user" && 
-      messages.slice(i + 1, messageIndex).every(m => m.role === "assistant")
-    );
-    
-    if (userMsgIndex === -1) return;
-    
-    const userMsg = messages[userMsgIndex];
-    const newMessages = messages.slice(0, userMsgIndex + 1);
-    
-    setMessages(newMessages);
-    setConversationId(conversationId); // Keep conversation ID
-    
-    // Send the same user message again
-    await sendMessageWithContent(userMsg.content);
-  };
-
   const exportConversation = () => {
+    const allMessages = streamingMsg
+      ? [...messages, streamingMsg]
+      : messages;
+
     const exportData = {
       datasetId,
-      datasetName: datasetsData?.items?.find(d => d.id === datasetId)?.name || "Unknown",
+      datasetName: datasetsData?.items?.find((d) => d.id === datasetId)?.name || "Unknown",
       exportedAt: new Date().toISOString(),
-      messages: messages.map(m => ({
+      messages: allMessages.map((m) => ({
         role: m.role,
         content: m.content,
         model: m.model,
         provider: m.provider,
       })),
     };
-    
+
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -178,99 +518,9 @@ export function ChatPage() {
     URL.revokeObjectURL(url);
   };
 
-  const sendMessageWithContent = async (content: string) => {
-    if (!content.trim() || isStreaming) return;
-    if (datasetId === "none") {
-      setError("Please select a dataset to chat about");
-      return;
-    }
+  const selectedDataset = datasetsData?.items?.find((d) => d.id === datasetId);
 
-    const userMsg: Message = { 
-      id: crypto.randomUUID(), 
-      role: "user", 
-      content: content.trim() 
-    };
-    
-    setMessages((prev) => [...prev, userMsg]);
-    setPrompt("");
-    setIsStreaming(true);
-    setShowSuggestions(false);
-    setError(null);
-
-    let assistantMsgId: string | undefined;
-
-    try {
-      const stream = api.streamChatAboutDataset(datasetId, userMsg.content, conversationId || undefined);
-      
-      // Add placeholder for streaming response
-      assistantMsgId = crypto.randomUUID();
-      setMessages((prev) => [...prev, {
-        id: assistantMsgId,
-        role: "assistant",
-        content: "",
-        isStreaming: true,
-      }]);
-
-      let fullResponse = "";
-      let receivedConversationId: string | undefined;
-      let receivedModel: string | undefined;
-      let receivedProvider: string | undefined;
-
-      for await (const chunk of stream) {
-        if (chunk.conversation_id && !receivedConversationId) {
-          receivedConversationId = chunk.conversation_id;
-        }
-        if (chunk.model) receivedModel = chunk.model;
-        if (chunk.provider) receivedProvider = chunk.provider;
-        if (chunk.content) {
-          fullResponse += chunk.content;
-          setMessages((prev) => prev.map(msg => 
-            msg.id === assistantMsgId 
-              ? { ...msg, content: fullResponse }
-              : msg
-          ));
-        }
-        if (chunk.done) break;
-      }
-
-      if (!conversationId && receivedConversationId) {
-        setConversationId(receivedConversationId);
-      }
-
-      // Update final message
-      setMessages((prev) => prev.map(msg => 
-        msg.id === assistantMsgId 
-          ? { 
-              ...msg, 
-              content: fullResponse, 
-              isStreaming: false,
-              model: receivedModel,
-              provider: receivedProvider,
-            }
-          : msg
-      ));
-
-    } catch (err) {
-      setError(getErrorMessage(err));
-      // Remove streaming placeholder on error
-      setMessages((prev) => prev.filter(msg => msg.id !== assistantMsgId));
-    } finally {
-      setIsStreaming(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    await sendMessageWithContent(prompt);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
-  const selectedDataset = datasetsData?.items?.find(d => d.id === datasetId);
+  // ── Render ────────────────────────────────────────────────────────
 
   return (
     <TooltipProvider>
@@ -281,13 +531,13 @@ export function ChatPage() {
             <p className="page-subtitle">Ask questions about your data in natural language</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {messages.length > 0 && (
+            {(messages.length > 0 || streamingMsg) && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={exportConversation}
                       className="gap-1"
                     >
@@ -299,9 +549,9 @@ export function ChatPage() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={clearConversation}
                       className="gap-1"
                     >
@@ -319,8 +569,12 @@ export function ChatPage() {
         <div className="flex min-h-0 flex-1 overflow-hidden flex-col gap-4 lg:flex-row">
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-              <div ref={scrollContainerRef} className="flex-1 min-h-0 space-y-4 overflow-y-auto p-6">
-                {messages.length === 0 && (
+              {/* ── Messages Area ─────────────────────────────────────── */}
+              <div
+                ref={containerRef}
+                className="relative flex-1 min-h-0 space-y-4 overflow-y-auto p-6"
+              >
+                {messages.length === 0 && !streamingMsg ? (
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <div className="flex size-16 items-center justify-center rounded-2xl bg-accent/30">
                       <Bot className="size-8 text-primary" />
@@ -329,12 +583,11 @@ export function ChatPage() {
                       {selectedDataset ? `Analyzing ${selectedDataset.name}` : "How can I help?"}
                     </h3>
                     <p className="mt-2 max-w-sm text-sm text-muted">
-                      {selectedDataset 
+                      {selectedDataset
                         ? `Ask about trends, anomalies, or insights in ${selectedDataset.name}.`
-                        : "Select a dataset and start asking questions about your data."
-                      }
+                        : "Select a dataset and start asking questions about your data."}
                     </p>
-                    
+
                     {selectedDataset && showSuggestions && (
                       <div className="mt-6 w-full max-w-md">
                         <p className="text-xs text-muted mb-3 text-left">Suggested prompts:</p>
@@ -352,97 +605,48 @@ export function ChatPage() {
                       </div>
                     )}
                   </div>
+                ) : (
+                  <>
+                    {messages.map((msg, idx) => (
+                      <ChatMessage
+                        key={msg.id}
+                        message={msg}
+                        index={idx}
+                        onCopy={copyMessage}
+                        onRegenerate={handleRegenerate}
+                        isLastStreaming={false}
+                      />
+                    ))}
+                    {streamingMsg && (
+                      <ChatMessage
+                        key={streamingMsg.id}
+                        message={streamingMsg}
+                        onCopy={copyMessage}
+                        isLastStreaming={true}
+                      />
+                    )}
+                  </>
                 )}
 
-                <AnimatePresence>
-                  {messages.map((msg, idx) => (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                {/* ── Scroll-to-bottom button ───────────────────────── */}
+                {showScrollButton && (
+                  <div className="sticky bottom-0 flex justify-center pointer-events-none">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="pointer-events-auto shadow-lg rounded-full gap-1.5"
+                      onClick={scrollToBottom}
                     >
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                          msg.role === "user"
-                            ? "bg-primary text-white"
-                            : "border border-border bg-muted-surface/50 text-foreground"
-                        }`}
-                      >
-                        {msg.role === "assistant" ? (
-                          <>
-                            <MarkdownRenderer content={msg.content} />
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              {(msg.model || msg.provider) && (
-                                <div className="flex flex-wrap gap-1">
-                                  {msg.model && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      {msg.model}
-                                    </Badge>
-                                  )}
-                                  {msg.provider && (
-                                    <Badge variant="outline" className="text-xs">
-                                      {msg.provider}
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
-                                    <span className="sr-only">Message actions</span>
-                                    <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <circle cx="12" cy="12" r="1" />
-                                      <circle cx="19" cy="12" r="1" />
-                                      <circle cx="5" cy="12" r="1" />
-                                    </svg>
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="min-w-[160px]">
-                                  <DropdownMenuItem 
-                                    onClick={() => copyMessage(msg.content)}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <Copy className="size-4" />
-                                    Copy
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    onClick={() => regenerateMessage(idx)}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <RotateCcw className="size-4" />
-                                    Regenerate
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </>
-                        ) : (
-                          <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-
-                {isStreaming && (
-                  <div className="flex items-center gap-2">
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="flex items-center gap-2"
-                    >
-                      <div className="flex size-8 items-center justify-center rounded-xl bg-accent/30">
-                        <Bot className="size-4 text-primary" />
-                      </div>
-                      <StreamingMessage content="" isStreaming={true} />
-                    </motion.div>
+                      <ChevronDown className="size-4" />
+                      Scroll to bottom
+                    </Button>
                   </div>
                 )}
 
                 <div className="h-0" />
               </div>
 
+              {/* ── Input Area ────────────────────────────────────────── */}
               <div className="border-t border-border p-4">
                 {error && (
                   <div className="mb-3 flex items-center gap-2 rounded-lg bg-danger/10 p-3 text-sm text-danger">
@@ -463,7 +667,7 @@ export function ChatPage() {
                         size="icon"
                         className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground"
                         onClick={() => setShowSuggestions(!showSuggestions)}
-                        disabled={messages.length > 0}
+                        disabled={messages.length > 0 || !!streamingMsg}
                       >
                         {showSuggestions ? <Sparkles className="size-5 text-primary" /> : <Sparkles className="size-5" />}
                       </Button>
@@ -480,20 +684,25 @@ export function ChatPage() {
                     onKeyDown={handleKeyDown}
                     disabled={isStreaming || datasetId === "none"}
                   />
-                  <Button 
-                    size="icon" 
-                    className="shrink-0 self-end h-10 w-10 rounded-full" 
-                    onClick={sendMessage} 
-                    disabled={isStreaming || !prompt.trim() || datasetId === "none"}
-                    aria-label="Send message"
+                  <Button
+                    size="icon"
+                    className="shrink-0 self-end h-10 w-10 rounded-full"
+                    onClick={isStreaming ? cancelStream : sendMessage}
+                    disabled={!isStreaming && (!prompt.trim() || datasetId === "none")}
+                    aria-label={isStreaming ? "Stop generating" : "Send message"}
                   >
-                    <Send className="size-5" />
+                    {isStreaming ? (
+                      <Square className="size-5 fill-current" />
+                    ) : (
+                      <Send className="size-5" />
+                    )}
                   </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* ── Sidebar ───────────────────────────────────────────────── */}
           <Card className="w-full shrink-0 overflow-hidden lg:w-80">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2">
@@ -516,7 +725,7 @@ export function ChatPage() {
                           <div className="text-xs text-muted flex items-center gap-2">
                             <span>{ds.row_count?.toLocaleString()} rows</span>
                             <Separator orientation="vertical" className="h-3" />
-                            <span>{ds.column_count || 'N/A'} cols</span>
+                            <span>{ds.column_count || "N/A"} cols</span>
                           </div>
                         </div>
                       </SelectItem>
@@ -524,7 +733,7 @@ export function ChatPage() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {selectedDataset && (
                 <div className="rounded-lg bg-muted/30 p-3 space-y-2">
                   <p className="text-xs text-muted">
@@ -537,7 +746,7 @@ export function ChatPage() {
                     </div>
                     <div className="bg-background/50 p-2 rounded">
                       <div className="text-muted">Columns</div>
-                      <div className="font-semibold">{selectedDataset.column_count || 'N/A'}</div>
+                      <div className="font-semibold">{selectedDataset.column_count || "N/A"}</div>
                     </div>
                     <div className="bg-background/50 p-2 rounded">
                       <div className="text-muted">Size</div>
@@ -554,14 +763,13 @@ export function ChatPage() {
                   </div>
                 </div>
               )}
-              
+
               <p className="text-xs text-muted">
-                {datasetId === "none" 
+                {datasetId === "none"
                   ? "Select a dataset to enable AI chat with full context."
-                  : "The AI will analyze your dataset and use its context to answer your questions."
-                }
+                  : "The AI will analyze your dataset and use its context to answer your questions."}
               </p>
-              
+
               {conversationId && (
                 <div className="flex items-center gap-2 text-xs text-muted">
                   <Badge variant="outline" className="text-xs">Active conversation</Badge>

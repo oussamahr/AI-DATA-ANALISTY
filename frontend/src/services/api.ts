@@ -321,15 +321,12 @@ class ApiService {
     return data;
   }
 
-  // Streaming chat - returns an async generator
   async *streamChatAboutDataset(
     datasetId: string,
     message: string,
-    conversationId?: string
+    conversationId?: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<{ content: string; done: boolean; conversation_id?: string; model?: string; provider?: string }, void, unknown> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-
     let response: Response;
     try {
       response = await fetch(`${API_BASE}/ai/chat/stream/${datasetId}`, {
@@ -337,17 +334,14 @@ class ApiService {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, conversation_id: conversationId }),
-        signal: controller.signal,
+        signal,
       });
     } catch (e) {
-      clearTimeout(timeout);
       if ((e as DOMException)?.name === "AbortError") {
-        throw new Error("Request timed out");
+        throw new Error("Stream cancelled");
       }
       throw new Error("Network request failed");
     }
-
-    clearTimeout(timeout);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Stream failed" }));
@@ -361,17 +355,9 @@ class ApiService {
 
     if (!reader) throw new Error("No reader available");
 
-    const CHUNK_TIMEOUT = 120000; // 2 min per chunk
-    let chunkTimer: ReturnType<typeof setTimeout> | undefined;
-
     try {
       while (true) {
-        const readPromise = reader.read();
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          chunkTimer = setTimeout(() => reject(new Error("Stream timed out")), CHUNK_TIMEOUT);
-        });
-        const { done, value } = await Promise.race([readPromise, timeoutPromise]);
-        clearTimeout(chunkTimer);
+        const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -389,7 +375,7 @@ class ApiService {
             try {
               parsed = JSON.parse(data);
             } catch {
-              continue; // Ignore parse errors for incomplete chunks
+              continue;
             }
             if (parsed.error) {
               throw new Error(parsed.error);
@@ -404,11 +390,9 @@ class ApiService {
         }
       }
     } finally {
-      clearTimeout(timeout);
       reader.releaseLock();
     }
 
-    // Stream ended without [DONE] — yield a final done chunk so the consumer resolves
     yield { content: "", done: true, conversation_id: conversationIdReceived };
   }
 

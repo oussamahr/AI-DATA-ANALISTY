@@ -240,10 +240,12 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
   return nodes;
 };
 
-export function MarkdownRenderer({ content, className = "" }: MarkdownRendererProps) {
+export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = "" }: MarkdownRendererProps) {
+  const parsed = React.useMemo(() => parseMarkdown(content), [content]);
+
   return (
     <div className={`prose prose-sm max-w-none ${className}`}>
-      {parseMarkdown(content)}
+      {parsed}
       <style>{`
         .inline-code {
           background-color: var(--color-muted);
@@ -257,4 +259,4 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
       `}</style>
     </div>
   );
-}
+});

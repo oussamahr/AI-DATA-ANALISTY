@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot } from "lucide-react";
 
 interface TypingIndicatorProps {
   className?: string;
@@ -11,7 +10,7 @@ export function TypingIndicator({ className = "" }: TypingIndicatorProps) {
   return (
     <div className={`flex items-center gap-2 text-sm text-muted ${className}`}>
       <div className="flex size-8 items-center justify-center rounded-xl bg-accent/30">
-        <Bot className="size-4 text-primary" />
+        <span className="size-4 text-primary font-semibold">AI</span>
       </div>
       <div className="flex gap-1">
         <motion.span
@@ -35,29 +34,13 @@ export function TypingIndicator({ className = "" }: TypingIndicatorProps) {
   );
 }
 
-export function StreamingMessage({ 
-  content, 
-  className = "",
-  isStreaming = false 
-}: { 
-  content: string; 
-  className?: string;
-  isStreaming?: boolean;
-}) {
+export function StreamingCursor({ className = "" }: { className?: string }) {
   return (
-    <div className={className}>
-      <div className="whitespace-pre-wrap text-sm">
-        {content}
-        {isStreaming && (
-          <motion.span
-            className="inline-block align-bottom text-primary animate-pulse"
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ duration: 0.8, repeat: Infinity }}
-          >
-            ▋
-          </motion.span>
-        )}
-      </div>
-    </div>
+    <motion.span
+      className={`inline-block w-[2px] h-[1.1em] bg-foreground ml-0.5 align-text-bottom ${className}`}
+      animate={{ opacity: [1, 0, 1] }}
+      transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+      aria-hidden="true"
+    />
   );
 }
