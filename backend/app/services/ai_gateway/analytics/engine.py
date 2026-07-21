@@ -242,7 +242,7 @@ class AIAnalyticsEngine:
 
     def _prepare_dataset_context(self, df: pd.DataFrame, max_rows: int = 50) -> dict[str, Any]:
         """Prepare dataset context for AI prompts."""
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
         cat_cols = df.select_dtypes(include=["object", "category", "string"]).columns.tolist()
         date_cols = df.select_dtypes(include=["datetime"]).columns.tolist()
 

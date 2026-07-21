@@ -195,7 +195,7 @@ def compute_outliers(series: pd.Series) -> tuple[list[int], dict[str, Any]]:
 
 def compute_correlations(df: pd.DataFrame) -> dict[str, dict[str, float]]:
     """Compute correlation matrix for numeric columns."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
     
     if len(numeric_cols) < 2:
         return {}
@@ -215,7 +215,7 @@ def compute_correlations(df: pd.DataFrame) -> dict[str, dict[str, float]]:
 
 def compute_distributions(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     """Compute distribution histograms for numeric columns."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
     
     distributions = {}
     for col in numeric_cols:
@@ -239,7 +239,7 @@ def compute_distributions(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
 
 def compute_statistics(df: pd.DataFrame) -> dict[str, dict[str, float]]:
     """Compute descriptive statistics for numeric columns."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
     
     statistics = {}
     for col in numeric_cols:
