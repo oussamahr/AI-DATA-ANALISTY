@@ -27,6 +27,7 @@ import { useDatasets } from "@/hooks/use-api";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/utils/cn";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
+import { StreamingCursor } from "@/components/ui/typing-indicator";
 import { useChatScroll } from "@/hooks/use-chat-scroll";
 
 interface Message {
@@ -110,17 +111,26 @@ const ChatMessage = memo(function ChatMessage({
       className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+        className={`max-w-[85%] px-4 py-3 ${
           message.role === "user"
-            ? "bg-primary text-white"
-            : "border border-border bg-muted-surface/50 text-foreground"
+            ? "rounded-2xl bg-primary text-white"
+            : isLastStreaming
+              ? // Streaming: render as plain text — no bubble, border, or background frame
+                "text-foreground"
+              : "rounded-2xl border border-border bg-muted-surface/50 text-foreground"
         }`}
       >
         {message.role === "assistant" ? (
           <>
             <div className="min-h-[1em]">
-              <MarkdownRenderer content={message.content} isStreaming={isLastStreaming} />
+              {isLastStreaming && message.content === "" ? (
+                // Waiting for the first token: subtle blinking caret, no placeholder bubble
+                <StreamingCursor className="bg-primary" />
+              ) : (
+                <MarkdownRenderer content={message.content} isStreaming={isLastStreaming} />
+              )}
             </div>
+            {!isLastStreaming && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {(message.model || message.provider) && (
                 <div className="flex flex-wrap gap-1">
@@ -155,7 +165,7 @@ const ChatMessage = memo(function ChatMessage({
                     <Copy className="size-4" />
                     Copy
                   </DropdownMenuItem>
-                  {!isLastStreaming && onRegenerate !== undefined && index !== undefined && (
+                  {onRegenerate !== undefined && index !== undefined && (
                     <DropdownMenuItem
                       onClick={() => onRegenerate(index)}
                       className="flex items-center gap-2"
@@ -167,6 +177,7 @@ const ChatMessage = memo(function ChatMessage({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+            )}
           </>
         ) : (
           <p className="whitespace-pre-wrap text-sm">{message.content}</p>
