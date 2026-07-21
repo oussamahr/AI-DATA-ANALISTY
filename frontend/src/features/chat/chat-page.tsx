@@ -525,7 +525,7 @@ export function ChatPage() {
   return (
     <TooltipProvider>
       <div className="page-container flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+         <div className="flex flex-col shrink-0 sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="page-title">AI Chat</h1>
             <p className="page-subtitle">Ask questions about your data in natural language</p>

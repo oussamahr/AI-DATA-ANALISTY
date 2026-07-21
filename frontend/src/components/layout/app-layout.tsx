@@ -60,7 +60,7 @@ export function AppLayout() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-          className="flex-1 flex flex-col overflow-hidden"
+          className="flex-1 flex min-h-0 flex-col overflow-hidden"
         >
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
             <Outlet />
