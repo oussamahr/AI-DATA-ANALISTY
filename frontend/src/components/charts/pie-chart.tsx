@@ -25,7 +25,7 @@ export function PieChart({ data, height = 280, donut = false }: PieChartProps) {
             borderRadius: "12px",
             fontSize: "13px",
           }}
-          formatter={(value: number, name: string, item) => [`${value} (${item.payload.percent}%)`, name]}
+          formatter={(value: any, name: any, item: any) => [`${value} (${item?.payload?.percent}%)`, name]}
         />
         <Pie
           data={chartData}

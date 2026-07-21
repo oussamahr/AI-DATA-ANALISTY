@@ -18,6 +18,7 @@ export interface DatasetResponse {
   file_size_bytes: number;
   mime_type: string;
   row_count: number | null;
+  column_count: number | null;
   contains_pii: boolean;
   owner_id: string;
   tenant_id: string;
