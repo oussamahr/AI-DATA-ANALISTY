@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type AxiosInstance } from "axios";
+import { openStream, type StreamHandle } from "@/services/stream";
 import type {
   AdminStats,
   AIInsightResponse,
@@ -321,95 +322,33 @@ class ApiService {
     return data;
   }
 
-  // Streaming chat - returns an async generator
-  async *streamChatAboutDataset(
+  /**
+   * Open a streaming chat connection to the backend SSE endpoint.
+   *
+   * Returns a {@link StreamHandle} which is an async iterable plus a
+   * `cancel()` method. Use it like:
+   *
+   * ```ts
+   * const handle = api.streamChatAboutDataset(id, msg, conv);
+   * for await (const ev of handle.events) {
+   *   if (ev.type === "content") append(ev.content);
+   *   if (ev.done || ev.type === "done") break;
+   * }
+   * // or to cancel:
+   * handle.cancel();
+   * ```
+   */
+  streamChatAboutDataset(
     datasetId: string,
     message: string,
     conversationId?: string
-  ): AsyncGenerator<{ content: string; done: boolean; conversation_id?: string; model?: string; provider?: string }, void, unknown> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-
-    let response: Response;
-    try {
-      response = await fetch(`${API_BASE}/ai/chat/stream/${datasetId}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, conversation_id: conversationId }),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(timeout);
-      if ((e as DOMException)?.name === "AbortError") {
-        throw new Error("Request timed out");
-      }
-      throw new Error("Network request failed");
-    }
-
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Stream failed" }));
-      throw new Error(error.detail || "Stream failed");
-    }
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let conversationIdReceived: string | undefined;
-
-    if (!reader) throw new Error("No reader available");
-
-    const CHUNK_TIMEOUT = 120000; // 2 min per chunk
-    let chunkTimer: ReturnType<typeof setTimeout> | undefined;
-
-    try {
-      while (true) {
-        const readPromise = reader.read();
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          chunkTimer = setTimeout(() => reject(new Error("Stream timed out")), CHUNK_TIMEOUT);
-        });
-        const { done, value } = await Promise.race([readPromise, timeoutPromise]);
-        clearTimeout(chunkTimer);
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") {
-              yield { content: "", done: true, conversation_id: conversationIdReceived };
-              return;
-            }
-            let parsed: any;
-            try {
-              parsed = JSON.parse(data);
-            } catch {
-              continue; // Ignore parse errors for incomplete chunks
-            }
-            if (parsed.error) {
-              throw new Error(parsed.error);
-            }
-            if (parsed.conversation_id && !conversationIdReceived) {
-              conversationIdReceived = parsed.conversation_id;
-            }
-            if (parsed.content) {
-              yield { content: parsed.content, done: parsed.done || false, conversation_id: conversationIdReceived, model: parsed.model, provider: parsed.provider };
-            }
-          }
-        }
-      }
-    } finally {
-      clearTimeout(timeout);
-      reader.releaseLock();
-    }
-
-    // Stream ended without [DONE] — yield a final done chunk so the consumer resolves
-    yield { content: "", done: true, conversation_id: conversationIdReceived };
+  ): StreamHandle {
+    return openStream({
+      url: `${API_BASE}/ai/chat/stream/${datasetId}`,
+      method: "POST",
+      body: { message, conversation_id: conversationId },
+      chunkTimeoutMs: 120_000,
+    });
   }
 
   async getChatHistory(conversationId: string) {

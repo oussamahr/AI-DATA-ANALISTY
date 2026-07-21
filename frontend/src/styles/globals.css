@@ -28,6 +28,41 @@
     @apply border-border;
   }
 
+  /* -------------------------------------------------------------------------
+     Viewport lock.
+
+     Why this exists:
+     The chat page is a long-lived, full-viewport application. We must
+     guarantee that the browser document (html/body) is exactly one
+     viewport tall. Scrolling is then delegated to inner containers
+     (the chat message list, the sidebar, etc.).
+
+     The contract:
+       - html and body are exactly 100vh tall.
+       - overflow is hidden at the document level.
+       - The React root (#root) is also clamped to 100vh so that a
+         misbehaving descendant (e.g. a framer-motion transform, a
+         portal-rendered tooltip, an error boundary fallback) cannot
+         push the document taller than the viewport.
+
+     This is belt-and-suspenders: `AppLayout` already sets
+     `h-screen overflow-hidden`, but the document-level clamp is the
+     only place that can enforce the invariant regardless of which
+     route is active, which layout is mounted, or whether a transient
+     state (auth loading, error boundary, route transition) is shown.
+
+     Without this, any descendant that escapes a `overflow: hidden`
+     ancestor (e.g. a fixed-position tooltip, a shiki-highlighted
+     <pre> that overflows, or a transform-induced containing block)
+     can grow the document and reveal the browser scrollbar.
+   */
+  html,
+  body,
+  #root {
+    height: 100vh;
+    overflow: hidden;
+  }
+
   html {
     @apply scroll-smooth antialiased;
   }
@@ -62,4 +97,147 @@
   .page-subtitle {
     @apply mt-1 text-base text-muted;
   }
+}
+
+/* =========================================================================
+   Streaming Markdown renderer styles
+   ------------------------------------------------------------------------- */
+
+.md-root {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-foreground);
+  word-wrap: break-word;
+}
+
+.md-root > * + * {
+  margin-top: 0.75rem;
+}
+
+.md-p { margin: 0; }
+.md-h1 { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
+.md-h2 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+.md-h3 { font-size: 1.05rem; font-weight: 600; margin: 0.9rem 0 0.35rem; }
+.md-ul, .md-ol { padding-left: 1.25rem; }
+.md-ul { list-style: disc; }
+.md-ol { list-style: decimal; }
+.md-quote {
+  border-left: 3px solid var(--color-primary);
+  padding: 0.25rem 0 0.25rem 0.9rem;
+  color: var(--color-muted);
+  font-style: italic;
+}
+.md-hr { border: none; border-top: 1px solid var(--color-border); margin: 1rem 0; }
+
+.md-inline-code {
+  background: var(--color-muted-surface);
+  color: var(--color-foreground);
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  border: 1px solid var(--color-border);
+}
+
+.md-codeblock {
+  position: relative;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--color-muted-surface);
+  border: 1px solid var(--color-border);
+  margin: 0.5rem 0;
+}
+.md-codeblock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  background: rgba(0,0,0,0.03);
+  border-bottom: 1px solid var(--color-border);
+}
+.md-codeblock-lang { font-family: ui-monospace, monospace; text-transform: lowercase; }
+.md-codeblock-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.md-codeblock-copy:hover { background: rgba(0,0,0,0.05); color: var(--color-foreground); }
+.md-codeblock-body {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--color-foreground);
+}
+/* Shiki output: strip its outer pre so we own the chrome. */
+.md-shiki pre {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  background: transparent !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+}
+.md-shiki code { display: block; min-width: max-content; }
+
+.md-table-wrap { overflow-x: auto; }
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.md-table th, .md-table td {
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+.md-table th { background: var(--color-muted-surface); font-weight: 600; }
+
+/* -------------------------------------------------------------------------
+   Blinking cursor — compositor-only animation, ~60 FPS, no JS.
+   ------------------------------------------------------------------------- */
+.md-cursor {
+  display: inline-block;
+  width: 0.55ch;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--color-primary);
+  border-radius: 1px;
+  animation: md-blink 1.05s steps(2, end) infinite;
+  will-change: opacity;
+  transform: translateZ(0); /* promote to its own layer */
+}
+.md-cursor-row {
+  list-style: none;
+  height: 1px;
+}
+@keyframes md-blink {
+  0%, 50%   { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-cursor { animation: none; opacity: 0.7; }
+}
+
+/* -------------------------------------------------------------------------
+   Scroll-to-bottom button
+   ------------------------------------------------------------------------- */
+.scroll-anchor {
+  position: relative;
+}
+/* When a new message lands, force the anchor to the bottom smoothly.
+   Smooth scrolling is gated to only run when the user is pinned. */
+.scroll-anchor.pinned {
+  scroll-behavior: smooth;
 }

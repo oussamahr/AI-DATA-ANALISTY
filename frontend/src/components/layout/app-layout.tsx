@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Navbar } from "@/components/layout/navbar";
+import { Navbar } from "@/components/layout/Navbar";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/hooks/use-api";
