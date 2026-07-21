@@ -172,9 +172,15 @@ export function AnalyticsPage() {
                 {report.sections.map((section, i) => (
                   <div key={i} className="rounded-xl border border-border/60 p-4">
                     <h3 className="font-medium text-foreground">{section.title}</h3>
-                    <p className="mt-2 text-sm text-muted">
-                      {typeof section.content === "string" ? section.content : JSON.stringify(section.content).slice(0, 200)}
-                    </p>
+                    <div className="mt-3 max-h-80 overflow-auto rounded-lg bg-muted/30 p-3">
+                      {typeof section.content === "string" ? (
+                        <p className="whitespace-pre-wrap break-words text-sm text-muted">{section.content}</p>
+                      ) : (
+                        <pre className="max-w-full whitespace-pre-wrap break-words text-xs leading-6 text-muted">
+                          {JSON.stringify(section.content, null, 2)}
+                        </pre>
+                      )}
+                    </div>
                   </div>
                 ))}
               </CardContent>
