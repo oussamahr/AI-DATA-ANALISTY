@@ -37,6 +37,13 @@ use_parentheses = true
 testpaths = ["backend/tests"]
 python_files = ["test_*.py"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
+    "ignore:'asyncio.get_event_loop_policy' is deprecated:DeprecationWarning",
+    "ignore:The event_loop fixture provided by pytest-asyncio has been redefined:DeprecationWarning",
+    "ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning",
+    "ignore:All support for the `google.generativeai` package has ended:FutureWarning",
+]
 
 [tool.ruff]
 line-length = 100
