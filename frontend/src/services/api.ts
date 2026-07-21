@@ -65,6 +65,17 @@ class ApiService {
       headers: { "Content-Type": "application/json" },
     });
 
+    this.client.interceptors.request.use((config) => {
+      const csrf = document.cookie
+        .split("; ")
+        .find((cookie) => cookie.startsWith("ai_data_csrf="))
+        ?.split("=")[1];
+      if (csrf && ["post", "put", "patch", "delete"].includes((config.method ?? "").toLowerCase())) {
+        config.headers["X-CSRF-Token"] = decodeURIComponent(csrf);
+      }
+      return config;
+    });
+
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError<ApiErrorBody>) => {
