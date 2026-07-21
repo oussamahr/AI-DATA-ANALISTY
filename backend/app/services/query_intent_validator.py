@@ -24,11 +24,11 @@ class QueryIntentValidator:
         re.compile(r"--\s*$", re.MULTILINE),
     ]
 
-    def validate(self, intent: QueryIntent) -> list[str]:
+    def validate(self, intent: QueryIntent, allowed_columns: set[str] | None = None) -> list[str]:
         warnings = []
         
         self._validate_query_type(intent, warnings)
-        self._validate_columns(intent, warnings)
+        self._validate_columns(intent, warnings, allowed_columns)
         self._validate_filters(intent, warnings)
         self._validate_limit(intent, warnings)
         self._validate_raw_query(intent)
@@ -42,7 +42,14 @@ class QueryIntentValidator:
         if intent.query_type == QueryType.AGGREGATE and not intent.aggregates:
             warnings.append("Aggregate query specified but no aggregate functions defined")
 
-    def _validate_columns(self, intent: QueryIntent, warnings: list[str]):
+    def _validate_columns(self, intent: QueryIntent, warnings: list[str], allowed_columns: set[str] | None = None):
+        requested = list(intent.columns) + list(intent.group_by) + [f.column for f in intent.filters]
+        requested += [a.column for a in intent.aggregates]
+        requested += [s.column for s in intent.sort_by]
+        if allowed_columns is not None:
+            unknown = sorted(set(requested) - allowed_columns)
+            if unknown:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Columns not present in dataset: {', '.join(unknown)}")
         for col in intent.columns:
             if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
                 warnings.append(f"Column name '{col}' may contain special characters")
