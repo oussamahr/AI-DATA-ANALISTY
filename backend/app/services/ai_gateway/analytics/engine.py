@@ -34,7 +34,7 @@ from app.services.ai_gateway import (
 )
 from app.services.ai_gateway.memory import ConversationMemory, get_conversation_memory
 from app.services.ai_gateway.prompts import PromptLibrary, get_prompt_library
-from app.services.analytics_service import _load_dataframe
+from app.services.analytics_service import _load_dataframe, load_dataframe
 
 logger = logging.getLogger("ai_gateway.analytics")
 
@@ -244,7 +244,7 @@ class AIAnalyticsEngine:
         """Prepare dataset context for AI prompts."""
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         cat_cols = df.select_dtypes(include=["object", "category", "string"]).columns.tolist()
-        date_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
+        date_cols = df.select_dtypes(include=["datetime64[ns]", "datetime64[us]", "datetime64[ms]"]).columns.tolist()
 
         # Column profiles
         columns = {}
@@ -270,7 +270,7 @@ class AIAnalyticsEngine:
                     "median": float(series.median()) if not series.isna().all() else None,
                     "std": float(series.std()) if not series.isna().all() else None,
                 })
-            elif dtype == "datetime64[ns]":
+            elif str(dtype).startswith("datetime64"):
                 col_info.update({
                     "min": str(series.min()) if not series.isna().all() else None,
                     "max": str(series.max()) if not series.isna().all() else None,

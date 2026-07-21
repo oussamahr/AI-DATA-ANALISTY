@@ -109,7 +109,7 @@ async def refresh(
     # Read refresh_token from httpOnly cookie (set by previous login/refresh)
     refresh_token = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
     if not refresh_token:
-        raise ValueError("Refresh token not found in cookies")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token not found")
     
     access_token, new_refresh_token = await auth_service.refresh_token(refresh_token)
     
