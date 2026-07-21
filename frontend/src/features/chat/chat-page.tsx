@@ -27,7 +27,7 @@ import { useDatasets } from "@/hooks/use-api";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/utils/cn";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { StreamingCursor } from "@/components/ui/typing-indicator";
+import { StreamingCursor, ThinkingBubble } from "@/components/ui/typing-indicator";
 import { useChatScroll } from "@/hooks/use-chat-scroll";
 
 interface Message {
@@ -124,8 +124,8 @@ const ChatMessage = memo(function ChatMessage({
           <>
             <div className="min-h-[1em]">
               {isLastStreaming && message.content === "" ? (
-                // Waiting for the first token: subtle blinking caret, no placeholder bubble
-                <StreamingCursor className="bg-primary" />
+                // Waiting for the first token: rounded thinking bubble with animated dots
+                <ThinkingBubble />
               ) : (
                 <MarkdownRenderer content={message.content} isStreaming={isLastStreaming} />
               )}
@@ -205,12 +205,10 @@ export function ChatPage() {
   // Mutable ref for streaming state — never causes re-renders
   const streamingRef = useRef({
     msgId: "",
-    buffer: "",
     fullContent: "",
     model: undefined as string | undefined,
     provider: undefined as string | undefined,
     convId: undefined as string | undefined,
-    rAFId: 0,
     isCancelled: false,
   });
 
@@ -224,54 +222,31 @@ export function ChatPage() {
   // ── Cleanup rAF on unmount ────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (streamingRef.current.rAFId) {
-        cancelAnimationFrame(streamingRef.current.rAFId);
-      }
+      // No rAF scheduling used for progressive streaming
     };
   }, []);
 
-  // ── Batched streaming update ──────────────────────────────────────
-  // Flushes the token buffer to React state once per animation frame.
-  // This prevents a React render cycle on every single token.
-  const flushToState = useCallback(() => {
-    const s = streamingRef.current;
-    if (s.buffer && !s.isCancelled) {
-      setStreamingMsg((prev) => ({
-        id: s.msgId,
-        role: "assistant",
-        content: (prev?.content || "") + s.buffer,
-        isStreaming: true,
-        model: s.model,
-        provider: s.provider,
-      }));
-      s.buffer = "";
-    }
-    s.rAFId = 0;
-  }, []);
-
-  // Appends a token to the buffer and schedules a flush via rAF.
-  // The fullContent ref is updated synchronously so the final message
-  // is always complete regardless of buffer state.
+  // Updates streaming message state synchronously for real-time progressive updates
   const addToken = useCallback(
     (token: string) => {
       const s = streamingRef.current;
       s.fullContent += token;
-      s.buffer += token;
-      if (!s.rAFId) {
-        s.rAFId = requestAnimationFrame(flushToState);
-      }
+      setStreamingMsg((prev) => ({
+        id: s.msgId,
+        role: "assistant",
+        content: (prev?.content || "") + token,
+        isStreaming: true,
+        model: s.model,
+        provider: s.provider,
+      }));
     },
-    [flushToState],
+    [],
   );
 
   // ── Cancel streaming ──────────────────────────────────────────────
   const cancelStream = useCallback(() => {
     const s = streamingRef.current;
     s.isCancelled = true;
-    if (s.rAFId) {
-      cancelAnimationFrame(s.rAFId);
-      s.rAFId = 0;
-    }
     // Keep whatever was generated so far
     setStreamingMsg(null);
     if (s.fullContent) {
@@ -315,12 +290,10 @@ export function ChatPage() {
       // Reset streaming state
       const s = streamingRef.current;
       s.msgId = assistantMsgId;
-      s.buffer = "";
       s.fullContent = "";
       s.model = undefined;
       s.provider = undefined;
       s.convId = undefined;
-      s.rAFId = 0;
       s.isCancelled = false;
 
       // Add user message + placeholder assistant message
@@ -365,23 +338,15 @@ export function ChatPage() {
         // ── Finalize ──────────────────────────────────────────────
         const finalS = streamingRef.current;
         if (!finalS.isCancelled) {
-          if (finalS.rAFId) {
-            cancelAnimationFrame(finalS.rAFId);
-            finalS.rAFId = 0;
-          }
-
-          // Apply any remaining buffered tokens
-          if (finalS.buffer) {
-            setStreamingMsg((prev) => ({
-              id: finalS.msgId,
-              role: "assistant",
-              content: (prev?.content || "") + finalS.buffer,
-              isStreaming: false,
-              model: receivedModel || finalS.model,
-              provider: receivedProvider || finalS.provider,
-            }));
-            finalS.buffer = "";
-          }
+          // Ensure streaming message reflects complete content before finalizing
+          setStreamingMsg((prev) => ({
+            id: finalS.msgId,
+            role: "assistant",
+            content: prev?.content || finalS.fullContent,
+            isStreaming: false,
+            model: receivedModel || finalS.model,
+            provider: receivedProvider || finalS.provider,
+          }));
 
           // Move the streaming message into the completed messages list
           setStreamingMsg(null);
@@ -407,10 +372,6 @@ export function ChatPage() {
         // content was generated so the user doesn't lose their response.
         if (!streamingRef.current.isCancelled) {
           const errS = streamingRef.current;
-          if (errS.rAFId) {
-            cancelAnimationFrame(errS.rAFId);
-            errS.rAFId = 0;
-          }
           setStreamingMsg(null);
 
           if (errS.fullContent) {
