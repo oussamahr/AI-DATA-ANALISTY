@@ -27,7 +27,6 @@ import { useDatasets } from "@/hooks/use-api";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/utils/cn";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { StreamingCursor } from "@/components/ui/typing-indicator";
 import { useChatScroll } from "@/hooks/use-chat-scroll";
 
 interface Message {
@@ -120,8 +119,7 @@ const ChatMessage = memo(function ChatMessage({
         {message.role === "assistant" ? (
           <>
             <div className="min-h-[1em]">
-              <MarkdownRenderer content={message.content} />
-              {isLastStreaming && <StreamingCursor />}
+              <MarkdownRenderer content={message.content} isStreaming={isLastStreaming} />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {(message.model || message.provider) && (

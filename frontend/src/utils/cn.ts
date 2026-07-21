@@ -29,7 +29,7 @@ export function formatNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
 
-export function getInitials(firstName?: string, lastName?: string, email?: string): string {
+export function getInitials(firstName?: string, _lastName?: string, email?: string): string {
   if (firstName) return firstName.charAt(0).toUpperCase();
   if (email) return email.charAt(0).toUpperCase();
   return "U";
