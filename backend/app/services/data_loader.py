@@ -121,7 +121,7 @@ def detect_column_type(series: pd.Series) -> tuple[bool, bool, bool, bool]:
     Returns:
         Tuple of (is_numeric, is_datetime, is_categorical, is_identifier)
     """
-    is_numeric = pd.api.types.is_numeric_dtype(series)
+    is_numeric = pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(series)
     is_datetime = pd.api.types.is_datetime64_any_dtype(series)
     
     n_unique = series.nunique()
