@@ -94,7 +94,7 @@ class ProviderManager:
             ProviderType.GEMINI: "gemini-1.5-flash",
             ProviderType.GROQ: "llama-3.1-70b-versatile",
             ProviderType.OPENROUTER: "google/gemini-2.5-flash",
-            ProviderType.ANTHROPIC: "claude-3-5-sonnet-20241022",
+            ProviderType.ANTHROPIC: settings.ANTHROPIC_MODEL or "claude-sonnet-5",
             ProviderType.DEEPSEEK: "deepseek-chat",
         }
 
