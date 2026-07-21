@@ -340,6 +340,7 @@ class ApiService {
   ): AsyncGenerator<{ content: string; done: boolean; conversation_id?: string; model?: string; provider?: string }, void, unknown> {
     let response: Response;
     try {
+      await this.client.post("/auth/refresh").catch(() => {});
       response = await fetch(`${API_BASE}/ai/chat/stream/${datasetId}`, {
         method: "POST",
         credentials: "include",
