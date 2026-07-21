@@ -250,7 +250,7 @@ class AIAnalyticsEngine:
         columns = {}
         for col in df.columns:
             series = df[col]
-            dtype = str(series.dtype)
+            dtype = "datetime64[ns]" if pd.api.types.is_datetime64_any_dtype(series) else str(series.dtype)
             null_count = int(series.isna().sum())
             unique_count = int(series.nunique())
 

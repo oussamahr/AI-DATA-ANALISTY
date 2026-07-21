@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user, require_auth_mode
