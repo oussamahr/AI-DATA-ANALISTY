@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Loader2, Sparkles, TrendingUp, Zap } from "lucide-react";
+import { Loader2, Mail, RefreshCw, Sparkles, TrendingUp, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,21 @@ export function AnalyticsPage() {
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+
+  const isVerificationError = error?.includes("verify your email");
+
+  const resendVerification = async () => {
+    setResendLoading(true);
+    try {
+      await api.forgotPassword(""); // Reuse password reset endpoint to send verification email
+      setError("Verification email sent! Please check your inbox.");
+    } catch {
+      setError("Failed to send verification email. Please try again.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const runAction = async (action: "profile" | "correlate" | "insights" | "analyze") => {
     if (!selectedId) return;
@@ -86,7 +101,35 @@ export function AnalyticsPage() {
       ) : (
         <>
           {error && (
-            <div className="rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</div>
+            <div className={`rounded-xl border px-4 py-3 text-sm ${
+              isVerificationError
+                ? "border-blue-500/30 bg-blue-500/5 text-blue-700"
+                : "border-danger/20 bg-danger/5 text-danger"
+            }`}>
+              <div className="flex items-start gap-2">
+                {isVerificationError ? (
+                  <Mail className="size-4 mt-0.5 flex-shrink-0" />
+                ) : null}
+                <span className="flex-1">{error}</span>
+              </div>
+              {isVerificationError && (
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resendVerification}
+                    disabled={resendLoading}
+                  >
+                    {resendLoading ? (
+                      <RefreshCw className="size-4 animate-spin mr-1" />
+                    ) : (
+                      <Mail className="size-4 mr-1" />
+                    )}
+                    Resend Verification Email
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

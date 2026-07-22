@@ -151,7 +151,7 @@ async def require_verified(current_user: User = Depends(get_current_user)) -> Us
     if not current_user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
+            detail="Please verify your email to use AI Insights. Check your inbox for a verification link or request a new one.",
         )
     return current_user
 
