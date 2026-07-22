@@ -57,12 +57,20 @@ export function DatasetsPage() {
           <h1 className="page-title">Datasets</h1>
           <p className="page-subtitle">Manage and explore your uploaded datasets</p>
         </div>
-        <Link to="/datasets/upload">
-          <Button>
-            <Plus className="size-4" />
-            Upload Dataset
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/datasets/db-connections">
+            <Button variant="outline">
+              <Database className="size-4 mr-2" />
+              DB Connections
+            </Button>
+          </Link>
+          <Link to="/datasets/upload">
+            <Button>
+              <Plus className="size-4" />
+              Upload Dataset
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <SearchInput

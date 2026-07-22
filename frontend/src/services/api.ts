@@ -506,6 +506,37 @@ class ApiService {
     const { data } = await this.client.post<ForecastingSuggestionsResponse>(`/ai/forecast/suggestions/${datasetId}`, request);
     return data;
   }
+
+  // ==================== DB Connections ====================
+
+  async listDbConnections() {
+    const { data } = await this.client.get<{ connections: any[] }>("/db-connections");
+    return data.connections;
+  }
+
+  async createDbConnection(connection: {
+    name: string;
+    description?: string;
+    host: string;
+    port: string;
+    database_name: string;
+    schema_name?: string;
+    username: string;
+    password: string;
+  }) {
+    const { data } = await this.client.post<any>("/db-connections", connection);
+    return data;
+  }
+
+  async introspectDbSchema(connectionId: string) {
+    const { data } = await this.client.get<any>(`/db-connections/${connectionId}/schema`);
+    return data;
+  }
+
+  async executeDbQuery(connectionId: string, query: string, limit = 10000) {
+    const { data } = await this.client.post<any>(`/db-connections/${connectionId}/query`, { query, limit });
+    return data;
+  }
 }
 
 export const api = new ApiService();

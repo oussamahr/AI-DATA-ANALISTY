@@ -16,6 +16,7 @@ import { AnalyticsPage } from "@/features/analytics/analytics-page";
 import { VisualizationsPage } from "@/features/analytics/visualizations-page";
 import { ChatPage } from "@/features/chat/chat-page";
 import { HistoryPage } from "@/features/chat/history-page";
+import { DbConnectionsPage } from "@/features/datasets/db-connections-page";
 
 export const router = createBrowserRouter([
   {
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       { path: "/datasets", element: <DatasetsPage /> },
       { path: "/datasets/upload", element: <UploadDatasetPage /> },
       { path: "/datasets/:id", element: <DatasetDetailPage /> },
+      { path: "/datasets/db-connections", element: <DbConnectionsPage /> },
       { path: "/analytics", element: <AnalyticsPage /> },
       { path: "/visualizations", element: <VisualizationsPage /> },
       { path: "/chat", element: <ChatPage /> },
