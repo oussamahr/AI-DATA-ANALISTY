@@ -37,6 +37,8 @@ interface Message {
   model?: string;
   provider?: string;
   isStreaming?: boolean;
+  isClarifying?: boolean;
+  thinkingStep?: string;
 }
 
 interface SuggestedPrompt {
@@ -117,19 +119,36 @@ const ChatMessage = memo(function ChatMessage({
             : isLastStreaming
               ? // Streaming: render as plain text — no bubble, border, or background frame
                 "text-foreground"
-              : "rounded-2xl border border-border bg-muted-surface/50 text-foreground"
+              : message.isClarifying
+                ? "rounded-2xl border-2 border-blue-500/30 bg-blue-500/5 text-foreground"
+                : "rounded-2xl border border-border bg-muted-surface/50 text-foreground"
         }`}
       >
         {message.role === "assistant" ? (
           <>
             <div className="min-h-[1em]">
               {isLastStreaming && message.content === "" ? (
-                // Waiting for the first token: subtle blinking caret, no placeholder bubble
-                <StreamingCursor className="bg-primary" />
+                // Waiting for the first token: show thinking step or blinking caret
+                <>
+                  {message.thinkingStep ? (
+                    <div className="flex items-center gap-2 text-sm text-muted">
+                      <div className="size-2 animate-pulse rounded-full bg-primary" />
+                      <span>{message.thinkingStep}</span>
+                    </div>
+                  ) : (
+                    <StreamingCursor className="bg-primary" />
+                  )}
+                </>
               ) : (
                 <MarkdownRenderer content={message.content} isStreaming={isLastStreaming} />
               )}
             </div>
+            {message.isClarifying && !isLastStreaming && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-blue-600">
+                <span>❓</span>
+                <span>Clarifying question — your next response will help me assist you better</span>
+              </div>
+            )}
             {!isLastStreaming && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {(message.model || message.provider) && (
@@ -338,6 +357,7 @@ export function ChatPage() {
       let receivedConversationId: string | undefined;
       let receivedModel: string | undefined;
       let receivedProvider: string | undefined;
+      let thinkingStep = "";
 
       try {
         const stream = api.streamChatAboutDataset(
@@ -355,6 +375,79 @@ export function ChatPage() {
           }
           if (chunk.model) receivedModel = chunk.model;
           if (chunk.provider) receivedProvider = chunk.provider;
+
+          // Handle thinking state progress updates
+          if (chunk.state === "thinking") {
+            if (chunk.error_detail) {
+              // Progress text (e.g., "Reading dataset...")
+              thinkingStep = chunk.error_detail;
+              setStreamingMsg((prev) => ({
+                id: s.msgId,
+                role: "assistant",
+                content: "",
+                isStreaming: true,
+                thinkingStep: chunk.error_detail,
+              }));
+            }
+            continue;
+          }
+
+          // Handle clarifying state
+          if (chunk.state === "clarifying") {
+            if (chunk.content) {
+              addToken(chunk.content);
+            }
+            if (chunk.done) {
+              // Move the clarifying message into completed messages
+              const finalS = streamingRef.current;
+              if (finalS.rAFId) {
+                cancelAnimationFrame(finalS.rAFId);
+                finalS.rAFId = 0;
+              }
+              if (finalS.buffer) {
+                setStreamingMsg((prev) => ({
+                  id: finalS.msgId,
+                  role: "assistant",
+                  content: (prev?.content || "") + finalS.buffer,
+                  isStreaming: false,
+                  model: receivedModel || finalS.model,
+                  provider: receivedProvider || finalS.provider,
+                  isClarifying: true,
+                }));
+                finalS.buffer = "";
+              }
+              setStreamingMsg(null);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: finalS.msgId,
+                  role: "assistant",
+                  content: finalS.fullContent,
+                  isStreaming: false,
+                  model: receivedModel || finalS.model,
+                  provider: receivedProvider || finalS.provider,
+                  isClarifying: true,
+                },
+              ]);
+              if (!conversationId && receivedConversationId) {
+                setConversationId(receivedConversationId);
+              }
+            }
+            continue;
+          }
+
+          // Handle error state from stream
+          if (chunk.state === "error") {
+            const errS = streamingRef.current;
+            if (errS.rAFId) {
+              cancelAnimationFrame(errS.rAFId);
+              errS.rAFId = 0;
+            }
+            setStreamingMsg(null);
+            setIsStreaming(false);
+            setError(chunk.error_detail || "Something went wrong");
+            return;
+          }
 
           if (chunk.content) {
             addToken(chunk.content);

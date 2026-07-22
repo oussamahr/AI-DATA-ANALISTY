@@ -1233,6 +1233,46 @@ Answer the user's question based on this dataset context. If you need to run ana
         messages.insert(0, ChatMessage(role=MessageRole.SYSTEM, content=system_content))
         messages.append(ChatMessage(role=MessageRole.USER, content=message))
 
+        # Check for ambiguity before generating full response
+        # If the query references columns that don't exist or is too vague,
+        # ask a clarifying question instead of guessing
+        clarifying = await self._check_for_clarification(message, df, context)
+        if clarifying:
+            # Store user message in memory
+            await self.memory.add_message(
+                conversation_id=conversation_id,
+                role=MessageRole.USER,
+                content=message,
+                user=user,
+                model="",
+                provider="",
+                tokens_prompt=0,
+                tokens_completion=0,
+                duration_ms=0,
+                dataset_id=dataset_id,
+            )
+            # Store clarifying question in memory
+            await self.memory.add_message(
+                conversation_id=conversation_id,
+                role=MessageRole.ASSISTANT,
+                content=clarifying,
+                user=user,
+                model="",
+                provider="",
+                tokens_prompt=0,
+                tokens_completion=0,
+                duration_ms=0,
+                dataset_id=dataset_id,
+            )
+            return {
+                "conversation_id": str(conversation_id),
+                "response": clarifying,
+                "model": "",
+                "provider": "",
+                "usage": {},
+                "state": "clarifying",
+            }
+
         # Get AI response
         response = await self.gateway.chat(messages=messages)
 
@@ -1269,7 +1309,40 @@ Answer the user's question based on this dataset context. If you need to run ana
             "model": response.model,
             "provider": response.provider.value,
             "usage": response.usage,
+            "state": "answer",
         }
+
+    async def _check_for_clarification(self, message: str, df: pd.DataFrame, context: dict[str, Any]) -> Optional[str]:
+        """Check if the user's query is ambiguous and needs clarification.
+        
+        Returns a clarifying question string if ambiguous, None if the query
+        can be answered directly.
+        """
+        # Check for empty or very short queries
+        if len(message.strip()) < 3:
+            return "Could you please provide more detail about what you'd like to know?"
+        
+        # Check for vague references to columns that don't exist
+        # Look for column-like references in the query
+        words = message.lower().split()
+        available_columns = set(context.get("columns", {}).keys())
+        
+        # If the query mentions specific column names that don't exist
+        # and the query seems to reference data columns (not general questions)
+        referenced_cols = []
+        for word in words:
+            # Remove punctuation
+            clean_word = word.strip(".,;:!?()[]{}\"'")
+            if clean_word in available_columns:
+                referenced_cols.append(clean_word)
+        
+        # If no columns are referenced but the query is about specific data
+        # (e.g., "show me the data" without specifying what data)
+        if not referenced_cols:
+            vague_indicators = ["show me", "give me", "what is", "how much", "which", "list"]
+            if any(indicator in message.lower() for indicator in vague_indicators):
+                if len(message.split()) < 6:  # Very short vague query
+                    return f"I'd be happy to help! Could you be more specific about what you'd like to know about the {context.get('row_count', '?')} rows in this dataset? For example, you could ask about specific columns like: {', '.join(list(available_columns)[:5])}."
 
 
 # Global engine instance

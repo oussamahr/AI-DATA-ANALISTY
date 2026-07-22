@@ -32,6 +32,7 @@ from app.services.ai_gateway.analytics import AIAnalyticsEngine, get_ai_analytic
 from app.services.ai_gateway.context_builder import get_context_builder
 from app.services.ai_gateway.memory import ConversationMemory, get_conversation_memory
 from app.services.ai_gateway.prompts import PromptLibrary, get_prompt_library
+from app.services.data_loader import load_dataframe as _load_dataframe
 
 # Prompt injection detection patterns (same as in llm_service.py)
 INJECTION_PATTERNS = [
@@ -347,6 +348,10 @@ class ChatMessageResponse(BaseModel):
     model: str
     provider: str
     usage: dict
+    # New fields for UX upgrade
+    state: str = "answer"  # "answer", "clarifying", "error"
+    error_category: Optional[str] = None  # "invalid_column", "row_cap_exceeded", "ambiguous_query", "provider_unavailable", "internal_error"
+    error_detail: Optional[str] = None  # Safe, user-actionable message (never internal details)
 
 
 class PromptListResponse(BaseModel):
@@ -955,33 +960,116 @@ async def chat_about_dataset(
         # Don't block, but flag for review - the message will be flagged in the conversation
         # Could also raise HTTPException(status_code=400, detail="Potential prompt injection detected")
     
-    result = await engine.chat_about_dataset(
-        dataset_id,
-        current_user,
-        request.message,
-        request.conversation_id,
-    )
-
-    await audit_logger.log(
-        "AI_CHAT",
-        "dataset",
-        str(dataset_id),
-        str(current_user.id),
-        str(current_user.tenant_id) if current_user.tenant_id else None,
-        details={
-            "conversation_id": str(result["conversation_id"]),
-            "injection_detected": injection is not None,
-            "injection_pattern": injection,
-        },
-    )
-
-    return ChatMessageResponse(
-        conversation_id=result["conversation_id"],
-        response=result["response"],
-        model=result["model"],
-        provider=result["provider"],
-        usage=result["usage"],
-    )
+    try:
+        result = await engine.chat_about_dataset(
+            dataset_id,
+            current_user,
+            request.message,
+            request.conversation_id,
+        )
+        
+        await audit_logger.log(
+            "AI_CHAT",
+            "dataset",
+            str(dataset_id),
+            str(current_user.id),
+            str(current_user.tenant_id) if current_user.tenant_id else None,
+            details={
+                "conversation_id": str(result["conversation_id"]),
+                "injection_detected": injection is not None,
+                "injection_pattern": injection,
+            },
+        )
+        
+        return ChatMessageResponse(
+            conversation_id=result["conversation_id"],
+            response=result["response"],
+            model=result["model"],
+            provider=result["provider"],
+            usage=result["usage"],
+            state=result.get("state", "answer"),
+            error_category=result.get("error_category"),
+            error_detail=result.get("error_detail"),
+        )
+    except HTTPException as e:
+        # Handle specific HTTP exceptions with safe, differentiated messages
+        # These are expected rejection reasons concerning the user's own request/data
+        if e.status_code == 400:
+            # Could be invalid column, bad request, etc.
+            # Map to safe user-facing message
+            return ChatMessageResponse(
+                conversation_id=request.conversation_id or uuid.uuid4(),
+                response="",
+                model="",
+                provider="",
+                usage={},
+                state="error",
+                error_category="invalid_column",
+                error_detail="I couldn't find that column in your dataset. Please check the column name and try again.",
+            )
+        elif e.status_code == 413:
+            return ChatMessageResponse(
+                conversation_id=request.conversation_id or uuid.uuid4(),
+                response="",
+                model="",
+                provider="",
+                usage={},
+                state="error",
+                error_category="row_cap_exceeded",
+                error_detail="This dataset is too large to analyze directly. Try filtering to a smaller subset first.",
+            )
+        else:
+            # Other HTTP exceptions — keep generic
+            return ChatMessageResponse(
+                conversation_id=request.conversation_id or uuid.uuid4(),
+                response="",
+                model="",
+                provider="",
+                usage={},
+                state="error",
+                error_category="internal_error",
+                error_detail="Something went wrong. Please try again.",
+            )
+    except RuntimeError as e:
+        # ProviderManager raises RuntimeError when all providers fail
+        # This is a provider availability issue, not a user error
+        error_msg = str(e).lower()
+        if "no ai providers available" in error_msg or "all providers failed" in error_msg:
+            return ChatMessageResponse(
+                conversation_id=request.conversation_id or uuid.uuid4(),
+                response="",
+                model="",
+                provider="",
+                usage={},
+                state="error",
+                error_category="provider_unavailable",
+                error_detail="AI service is temporarily unavailable. Please try again in a moment.",
+            )
+        else:
+            # Unexpected RuntimeError — treat as internal error
+            return ChatMessageResponse(
+                conversation_id=request.conversation_id or uuid.uuid4(),
+                response="",
+                model="",
+                provider="",
+                usage={},
+                state="error",
+                error_category="internal_error",
+                error_detail="Something went wrong. Please try again.",
+            )
+    except AppException as e:
+        # AppException messages are considered safe to surface
+        # But we map to specific categories for better UX
+        return ChatMessageResponse(
+            conversation_id=request.conversation_id or uuid.uuid4(),
+            response="",
+            model="",
+            provider="",
+            usage={},
+            state="error",
+            error_category="internal_error",
+            error_detail=e.message,
+        )
 
 
 # ==================== Streaming Chat ====================
@@ -997,6 +1085,10 @@ class StreamChatChunk(BaseModel):
     conversation_id: Optional[str] = None
     model: Optional[str] = None
     provider: Optional[str] = None
+    # New fields for UX upgrade
+    state: Optional[str] = None  # "thinking", "clarifying", "error"
+    error_category: Optional[str] = None
+    error_detail: Optional[str] = None
 
 
 @router.post("/chat/stream/{dataset_id}")
@@ -1029,11 +1121,17 @@ async def stream_chat_about_dataset(
     
     async def generate_stream():
         try:
+            # Step 1: Reading dataset
+            yield "data: {\"state\": \"thinking\", \"content\": \"Reading dataset...\", \"done\": false}\n\n"
+            
             # Get comprehensive dataset context using ContextBuilder
             context_builder = get_context_builder()
             dataset_context = await context_builder.build_context(dataset_id, current_user, max_sample_rows=50)
             max_context_tokens = 8000
             context_text = context_builder.to_prompt_text(dataset_context, include_full=True, max_tokens=max_context_tokens)
+            
+            # Step 2: Building context
+            yield "data: {\"state\": \"thinking\", \"content\": \"Building context...\", \"done\": false}\n\n"
             
             # Get or create conversation
             memory = get_conversation_memory()
@@ -1068,6 +1166,22 @@ Instructions:
 - If you detect data quality issues, mention them"""
             messages.insert(0, ChatMessage(role=MessageRole.SYSTEM, content=system_content))
             messages.append(ChatMessage(role=MessageRole.USER, content=request.message))
+            
+            # Check for ambiguity before generating full response
+            from app.services.ai_gateway.analytics.engine import AIAnalyticsEngine
+            engine = get_ai_analytics_engine()
+            df = _load_dataframe(dataset_context.dataset.file_path) if hasattr(dataset_context, 'dataset') else None
+            if df is not None:
+                clarifying = await engine._check_for_clarification(request.message, df, engine._prepare_dataset_context(df))
+                if clarifying:
+                    # Send clarifying question as a complete message
+                    yield f"data: {StreamChatChunk(content=clarifying, done=False, conversation_id=conv_id_str, state='clarifying').model_dump_json()}\n\n"
+                    yield f"data: {StreamChatChunk(content='', done=True, conversation_id=conv_id_str, state='clarifying').model_dump_json()}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+            
+            # Step 3: Thinking (LLM call)
+            yield "data: {\"state\": \"thinking\", \"content\": \"Thinking...\", \"done\": false}\n\n"
             
             # Stream from gateway
             gateway = get_ai_gateway()
@@ -1111,6 +1225,9 @@ Instructions:
                     received_provider = chunk.provider.value
                     break
             
+            # Step 4: Checking results
+            yield "data: {\"state\": \"thinking\", \"content\": \"Checking results...\", \"done\": false}\n\n"
+            
             # Store assistant message
             await memory.add_message(
                 conversation_id=conv_id,
@@ -1136,9 +1253,54 @@ Instructions:
             yield f"data: {final_data.model_dump_json()}\n\n"
             yield "data: [DONE]\n\n"
             
+        except HTTPException as e:
+            # Handle specific HTTP exceptions with safe, differentiated messages
+            if e.status_code == 400:
+                error_chunk = StreamChatChunk(
+                    content="", done=True, conversation_id=request.conversation_id and str(request.conversation_id),
+                    state="error", error_category="invalid_column",
+                    error_detail="I couldn't find that column in your dataset. Please check the column name and try again.",
+                )
+            elif e.status_code == 413:
+                error_chunk = StreamChatChunk(
+                    content="", done=True, conversation_id=request.conversation_id and str(request.conversation_id),
+                    state="error", error_category="row_cap_exceeded",
+                    error_detail="This dataset is too large to analyze directly. Try filtering to a smaller subset first.",
+                )
+            else:
+                error_chunk = StreamChatChunk(
+                    content="", done=True, conversation_id=request.conversation_id and str(request.conversation_id),
+                    state="error", error_category="internal_error",
+                    error_detail="Something went wrong. Please try again.",
+                )
+            yield f"data: {error_chunk.model_dump_json()}\n\n"
+            yield "data: [DONE]\n\n"
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if "no ai providers available" in error_msg or "all providers failed" in error_msg:
+                error_chunk = StreamChatChunk(
+                    content="", done=True, conversation_id=request.conversation_id and str(request.conversation_id),
+                    state="error", error_category="provider_unavailable",
+                    error_detail="AI service is temporarily unavailable. Please try again in a moment.",
+                )
+            else:
+                error_chunk = StreamChatChunk(
+                    content="", done=True, conversation_id=request.conversation_id and str(request.conversation_id),
+                    state="error", error_category="internal_error",
+                    error_detail="Something went wrong. Please try again.",
+                )
+            yield f"data: {error_chunk.model_dump_json()}\n\n"
+            yield "data: [DONE]\n\n"
         except Exception as e:
-            error_data = {"error": str(e)}
-            yield f"data: {json.dumps(error_data)}\n\n"
+            # Log the full error server-side but send generic message to client
+            logger.exception("Streaming chat error", extra={"request_id": getattr(http_request.state, 'request_id', None)})
+            error_chunk = StreamChatChunk(
+                content="", done=True, conversation_id=request.conversation_id and str(request.conversation_id),
+                state="error", error_category="internal_error",
+                error_detail="Something went wrong. Please try again.",
+            )
+            yield f"data: {error_chunk.model_dump_json()}\n\n"
+            yield "data: [DONE]\n\n"
     
     return StreamingResponse(
         generate_stream(),
