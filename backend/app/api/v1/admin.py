@@ -38,3 +38,21 @@ async def admin_stats(
         "total_users": user_count or 0,
         "total_tenants": tenant_count or 0,
     }
+
+
+@router.post("/users/{user_id}/verify", response_model=UserResponse)
+async def verify_user(
+    user_id: str,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_session),
+):
+    """Admin endpoint to manually verify a user's email."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        from app.core.security.exceptions import AppException
+        raise AppException("User not found", 404)
+    user.is_verified = True
+    await db.flush()
+    await audit_logger.update("user", user_id, str(current_user.id), details={"action": "verify_email"})
+    return user
