@@ -4,6 +4,7 @@ AI Analytics API Routes.
 Provides endpoints for all advanced AI-powered analytics features.
 """
 
+import logging
 import re
 import uuid
 from typing import Optional
@@ -33,6 +34,8 @@ from app.services.ai_gateway.context_builder import get_context_builder
 from app.services.ai_gateway.memory import ConversationMemory, get_conversation_memory
 from app.services.ai_gateway.prompts import PromptLibrary, get_prompt_library
 from app.services.data_loader import load_dataframe as _load_dataframe
+
+logger = logging.getLogger(__name__)
 
 # Prompt injection detection patterns (same as in llm_service.py)
 INJECTION_PATTERNS = [
@@ -1077,6 +1080,8 @@ async def chat_about_dataset(
 class StreamChatMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=8000)
     conversation_id: Optional[uuid.UUID] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
 
 
 class StreamChatChunk(BaseModel):
@@ -1208,6 +1213,8 @@ Instructions:
                 messages=messages,
                 tenant_id=current_user.tenant_id,
                 user_id=current_user.id,
+                model=request.model,
+                provider_type=ProviderType(request.provider) if request.provider else None,
             ):
                 if chunk.content:
                     # Send chunk as SSE

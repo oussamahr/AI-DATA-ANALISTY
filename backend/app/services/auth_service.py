@@ -23,6 +23,8 @@ from app.models.role import Role
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.user import UserCreate
+from app.services.email_service import email_service
+from app.core.config import settings
 
 
 class AuthService:
@@ -107,6 +109,12 @@ class AuthService:
     async def get_verification_token(self, user: User) -> str:
         return create_verification_token(user.email)
 
+    async def send_verification_email(self, email: str) -> None:
+        """Send a verification email to the given address."""
+        token = create_verification_token(email)
+        base_url = settings.BASE_URL
+        await email_service.send_verification_email(email, token, base_url)
+
     async def verify_email(self, token: str) -> User:
         email = decode_verification_token(token)
         if email is None:
@@ -130,6 +138,9 @@ class AuthService:
             raise AppException("If that email exists, a reset link has been sent", 200)
 
         token = create_reset_token(email)
+        # Send password reset email
+        base_url = settings.BASE_URL
+        await email_service.send_password_reset_email(email, token, base_url)
         return token
 
     async def reset_password(self, token: str, new_password: str) -> User:

@@ -340,6 +340,8 @@ class ApiService {
     message: string,
     conversationId?: string,
     signal?: AbortSignal,
+    model?: string,
+    provider?: string,
   ): AsyncGenerator<{ content: string; done: boolean; conversation_id?: string; model?: string; provider?: string; state?: string; error_category?: string; error_detail?: string }, void, unknown> {
     let response: Response;
     try {
@@ -348,7 +350,7 @@ class ApiService {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, conversation_id: conversationId }),
+        body: JSON.stringify({ message, conversation_id: conversationId, model, provider }),
         signal,
       });
     } catch (e) {

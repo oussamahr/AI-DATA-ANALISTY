@@ -46,8 +46,8 @@ export function Sidebar() {
         </div>
         {isOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
-            <p className="text-sm font-semibold text-white">InsightAI</p>
-            <p className="text-xs text-sidebar-foreground/60">Analytics Platform</p>
+            <p className="text-sm font-semibold text-foreground">Neuralytics</p>
+            <p className="text-xs text-sidebar-foreground/60">AI Data Analytics</p>
           </motion.div>
         )}
       </div>
@@ -61,8 +61,8 @@ export function Sidebar() {
               cn(
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-white/10 text-white"
-                  : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-white",
+                  ? "bg-foreground/10 text-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-foreground/5 hover:text-foreground",
               )
             }
           >
@@ -79,7 +79,7 @@ export function Sidebar() {
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
                   ? "bg-accent/20 text-accent"
-                  : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-white",
+                  : "text-sidebar-foreground/70 hover:bg-foreground/5 hover:text-foreground",
               )
             }
           >

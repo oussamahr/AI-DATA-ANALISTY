@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     PROJECT_DESCRIPTION: str = "Multi-tenant AI-powered data analytics platform"
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
+    BASE_URL: str = "http://localhost:3000"
 
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -69,7 +70,7 @@ class Settings(BaseSettings):
 
     # Groq
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.1-70b-versatile"
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
     # OpenRouter
     OPENROUTER_API_KEY: str = ""

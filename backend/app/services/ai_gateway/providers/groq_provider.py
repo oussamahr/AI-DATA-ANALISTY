@@ -35,13 +35,12 @@ class GroqProvider(AIProvider):
 
     @property
     def default_model(self) -> str:
-        return self.config.default_model or "llama-3.1-70b-versatile"
+        return self.config.default_model or "llama-3.3-70b-versatile"
 
     async def initialize(self) -> None:
         """Initialize Groq client."""
         self._client = AsyncGroq(
             api_key=self.config.api_key,
-            base_url=self.config.base_url or "https://api.groq.com/openai/v1",
             timeout=self.config.timeout,
         )
 

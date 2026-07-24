@@ -12,17 +12,26 @@ import {
   BarChart,
   Square,
   ChevronDown,
+  ThumbsUp,
+  ThumbsDown,
+  Clock,
+  MessageSquare,
+  Share2,
+  Edit3,
+  Check,
+  X,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 import { useDatasets } from "@/hooks/use-api";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/utils/cn";
@@ -38,7 +47,9 @@ interface Message {
   provider?: string;
   isStreaming?: boolean;
   isClarifying?: boolean;
-  thinkingStep?: string;
+  timestamp?: Date;
+  tokens?: { prompt: number; completion: number };
+  reaction?: "up" | "down";
 }
 
 interface SuggestedPrompt {
@@ -49,43 +60,43 @@ interface SuggestedPrompt {
 const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   {
     label: "Overview & Summary",
-    prompt: (name) => `Give me a comprehensive overview of the ${name} dataset. What are the key columns, data quality issues, and initial insights?`
+    prompt: (name) => `Give me a comprehensive overview of the ${name} dataset. What are the key columns, data quality issues, and initial insights?`,
   },
   {
     label: "Key Trends",
-    prompt: (name) => `What are the main trends and patterns in the ${name} dataset? Identify any seasonality or growth/decline patterns.`
+    prompt: (name) => `What are the main trends and patterns in the ${name} dataset? Identify any seasonality or growth/decline patterns.`,
   },
   {
     label: "Top Performers",
-    prompt: (name) => `What are the top 10 items by value in the ${name} dataset? Show me the highest performing categories, products, or regions.`
+    prompt: (name) => `What are the top 10 items by value in the ${name} dataset? Show me the highest performing categories, products, or regions.`,
   },
   {
     label: "Anomalies & Outliers",
-    prompt: (name) => `Detect any anomalies, outliers, or unusual patterns in the ${name} dataset. Are there any potential data quality issues or fraud signals?`
+    prompt: (name) => `Detect any anomalies, outliers, or unusual patterns in the ${name} dataset. Are there any potential data quality issues or fraud signals?`,
   },
   {
     label: "Correlations",
-    prompt: (name) => `What are the strongest correlations in the ${name} dataset? Which variables are most related to each other?`
+    prompt: (name) => `What are the strongest correlations in the ${name} dataset? Which variables are most related to each other?`,
   },
   {
     label: "Data Quality Report",
-    prompt: (name) => `Assess the data quality of the ${name} dataset. What are the missing values, duplicates, and inconsistencies?`
+    prompt: (name) => `Assess the data quality of the ${name} dataset. What are the missing values, duplicates, and inconsistencies?`,
   },
   {
     label: "Forecasting",
-    prompt: (name) => `Can you forecast future values for the ${name} dataset? Identify the best time series column and target metric.`
+    prompt: (name) => `Can you forecast future values for the ${name} dataset? Identify the best time series column and target metric.`,
   },
   {
     label: "Visualization Ideas",
-    prompt: (name) => `Recommend the best visualizations for the ${name} dataset. What charts would work well for exploration vs presentation?`
+    prompt: (name) => `Recommend the best visualizations for the ${name} dataset. What charts would work well for exploration vs presentation?`,
   },
   {
     label: "SQL Generation",
-    prompt: (name) => `Generate a SQL query to find the top 5 categories by total revenue in the ${name} dataset.`
+    prompt: (name) => `Generate a SQL query to find the top 5 categories by total revenue in the ${name} dataset.`,
   },
   {
     label: "Python Analysis",
-    prompt: (name) => `Generate Python code to perform exploratory data analysis on the ${name} dataset with visualizations.`
+    prompt: (name) => `Generate Python code to perform exploratory data analysis on the ${name} dataset with visualizations.`,
   },
 ];
 
@@ -96,6 +107,7 @@ interface ChatMessageProps {
   index?: number;
   onCopy: (content: string) => void;
   onRegenerate?: (index: number) => void;
+  onReaction: (messageId: string, reaction: "up" | "down") => void;
   isLastStreaming?: boolean;
 }
 
@@ -104,8 +116,26 @@ const ChatMessage = memo(function ChatMessage({
   index,
   onCopy,
   onRegenerate,
+  onReaction,
   isLastStreaming = false,
 }: ChatMessageProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    onCopy(message.content);
+  };
+
+  const handleReaction = (reaction: "up" | "down") => {
+    onReaction(message.id, reaction);
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -113,14 +143,13 @@ const ChatMessage = memo(function ChatMessage({
       className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`max-w-[85%] px-4 py-3 ${
+        className={`group relative max-w-[85%] px-4 py-3 ${
           message.role === "user"
-            ? "rounded-2xl bg-primary text-white"
+            ? "rounded-2xl bg-primary text-foreground"
             : isLastStreaming
-              ? // Streaming: render as plain text — no bubble, border, or background frame
-                "text-foreground"
+              ? "text-foreground"
               : message.isClarifying
-                ? "rounded-2xl border-2 border-blue-500/30 bg-blue-500/5 text-foreground"
+                ? "rounded-2xl border-2 border-accent/30 bg-accent/5 text-foreground"
                 : "rounded-2xl border border-border bg-muted-surface/50 text-foreground"
         }`}
       >
@@ -128,83 +157,138 @@ const ChatMessage = memo(function ChatMessage({
           <>
             <div className="min-h-[1em]">
               {isLastStreaming && message.content === "" ? (
-                // Waiting for the first token: show thinking step or blinking caret
-                <>
-                  {message.thinkingStep ? (
-                    <div className="flex items-center gap-2 text-sm text-muted">
-                      <div className="size-2 animate-pulse rounded-full bg-primary" />
-                      <span>{message.thinkingStep}</span>
-                    </div>
-                  ) : (
-                    <StreamingCursor className="bg-primary" />
-                  )}
-                </>
+                <StreamingCursor className="bg-primary" />
               ) : (
                 <MarkdownRenderer content={message.content} isStreaming={isLastStreaming} />
               )}
             </div>
             {message.isClarifying && !isLastStreaming && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-blue-600">
+              <div className="mt-2 flex items-center gap-2 text-xs text-accent">
                 <span>❓</span>
                 <span>Clarifying question — your next response will help me assist you better</span>
               </div>
             )}
             {!isLastStreaming && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {(message.model || message.provider) && (
-                <div className="flex flex-wrap gap-1">
-                  {message.model && (
-                    <Badge variant="secondary" className="text-xs">
-                      {message.model}
-                    </Badge>
-                  )}
-                  {message.provider && (
-                    <Badge variant="outline" className="text-xs">
-                      {message.provider}
-                    </Badge>
-                  )}
-                </div>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
-                    <span className="sr-only">Message actions</span>
-                    <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="1" />
-                      <circle cx="19" cy="12" r="1" />
-                      <circle cx="5" cy="12" r="1" />
-                    </svg>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[160px]">
-                  <DropdownMenuItem
-                    onClick={() => onCopy(message.content)}
-                    className="flex items-center gap-2"
-                  >
-                    <Copy className="size-4" />
-                    Copy
-                  </DropdownMenuItem>
-                  {onRegenerate !== undefined && index !== undefined && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {(message.model || message.provider) && (
+                  <div className="flex flex-wrap gap-1">
+                    {message.model && (
+                      <Badge variant="secondary" className="text-xs">
+                        {message.model}
+                      </Badge>
+                    )}
+                    {message.provider && (
+                      <Badge variant="outline" className="text-xs">
+                        {message.provider}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+                {message.timestamp && (
+                  <div className="flex items-center gap-1 text-xs text-muted">
+                    <Clock className="w-3 h-3" />
+                    {formatTime(message.timestamp)}
+                  </div>
+                )}
+                {message.tokens && (
+                  <div className="flex items-center gap-1 text-xs text-muted">
+                    <span>{message.tokens.prompt + message.tokens.completion} tokens</span>
+                  </div>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
+                      <span className="sr-only">Message actions</span>
+                      <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="1" />
+                        <circle cx="19" cy="12" r="1" />
+                        <circle cx="5" cy="12" r="1" />
+                      </svg>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[160px]">
+                    <DropdownMenuItem onClick={handleCopy} className="flex items-center gap-2">
+                      <Copy className="size-4" />
+                      {copied ? "Copied!" : "Copy"}
+                    </DropdownMenuItem>
+                    {onRegenerate !== undefined && index !== undefined && (
+                      <DropdownMenuItem
+                        onClick={() => onRegenerate(index)}
+                        className="flex items-center gap-2"
+                      >
+                        <RotateCcw className="size-4" />
+                        Regenerate
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
-                      onClick={() => onRegenerate(index)}
+                      onClick={() => handleReaction("up")}
                       className="flex items-center gap-2"
                     >
-                      <RotateCcw className="size-4" />
-                      Regenerate
+                      <ThumbsUp className="size-4" />
+                      Helpful
                     </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                    <DropdownMenuItem
+                      onClick={() => handleReaction("down")}
+                      className="flex items-center gap-2"
+                    >
+                      <ThumbsDown className="size-4" />
+                      Not helpful
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
           </>
         ) : (
           <p className="whitespace-pre-wrap text-sm">{message.content}</p>
         )}
+
+        {/* Reaction indicator for assistant messages */}
+        {!isLastStreaming && message.role === "assistant" && message.reaction && (
+          <div className="absolute -bottom-2 right-2 bg-surface border border-border rounded-full px-1.5 py-0.5">
+            {message.reaction === "up" ? (
+              <ThumbsUp className="w-3 h-3 text-accent" />
+            ) : (
+              <ThumbsDown className="w-3 h-3 text-danger" />
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );
 });
+
+// ─── Quick Reply Buttons ────────────────────────────────────────────
+
+const QUICK_REPLIES = [
+  "Can you elaborate on that?",
+  "Show me the SQL for this",
+  "What are the limitations?",
+  "Give me a summary",
+];
+
+function QuickReplies({ onQuickReply }: { onQuickReply: (text: string) => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="mb-4 flex flex-wrap gap-2"
+    >
+      {QUICK_REPLIES.map((reply) => (
+        <Button
+          key={reply}
+          variant="outline"
+          size="sm"
+          className="text-xs"
+          onClick={() => onQuickReply(reply)}
+        >
+          {reply}
+        </Button>
+      ))}
+    </motion.div>
+  );
+}
 
 // ─── Chat Page ──────────────────────────────────────────────────────
 
@@ -215,9 +299,15 @@ export function ChatPage() {
   const [prompt, setPrompt] = useState("");
   const [datasetId, setDatasetId] = useState<string>("none");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationTitle, setConversationTitle] = useState<string>("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedProvider, setSelectedProvider] = useState<string>("");
+  const [messageReactions, setMessageReactions] = useState<Record<string, "up" | "down">>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -250,8 +340,6 @@ export function ChatPage() {
   }, []);
 
   // ── Batched streaming update ──────────────────────────────────────
-  // Flushes the token buffer to React state once per animation frame.
-  // This prevents a React render cycle on every single token.
   const flushToState = useCallback(() => {
     const s = streamingRef.current;
     if (s.buffer && !s.isCancelled) {
@@ -262,6 +350,7 @@ export function ChatPage() {
         isStreaming: true,
         model: s.model,
         provider: s.provider,
+        timestamp: new Date(),
       }));
       s.buffer = "";
     }
@@ -269,8 +358,6 @@ export function ChatPage() {
   }, []);
 
   // Appends a token to the buffer and schedules a flush via rAF.
-  // The fullContent ref is updated synchronously so the final message
-  // is always complete regardless of buffer state.
   const addToken = useCallback(
     (token: string) => {
       const s = streamingRef.current;
@@ -291,7 +378,6 @@ export function ChatPage() {
       cancelAnimationFrame(s.rAFId);
       s.rAFId = 0;
     }
-    // Keep whatever was generated so far
     setStreamingMsg(null);
     if (s.fullContent) {
       setMessages((prev) => [
@@ -303,6 +389,7 @@ export function ChatPage() {
           isStreaming: false,
           model: s.model,
           provider: s.provider,
+          timestamp: new Date(),
         },
       ]);
     }
@@ -327,6 +414,7 @@ export function ChatPage() {
         id: crypto.randomUUID(),
         role: "user",
         content: content.trim(),
+        timestamp: new Date(),
       };
 
       const assistantMsgId = crypto.randomUUID();
@@ -349,15 +437,16 @@ export function ChatPage() {
         role: "assistant",
         content: "",
         isStreaming: true,
+        timestamp: new Date(),
       });
       setIsStreaming(true);
       setShowSuggestions(false);
+      setShowQuickReplies(false);
       setError(null);
 
       let receivedConversationId: string | undefined;
       let receivedModel: string | undefined;
       let receivedProvider: string | undefined;
-      let thinkingStep = "";
 
       try {
         const stream = api.streamChatAboutDataset(
@@ -365,6 +454,8 @@ export function ChatPage() {
           userMsg.content,
           conversationId || undefined,
           controller.signal,
+          selectedModel || undefined,
+          selectedProvider || undefined,
         );
 
         for await (const chunk of stream) {
@@ -376,19 +467,8 @@ export function ChatPage() {
           if (chunk.model) receivedModel = chunk.model;
           if (chunk.provider) receivedProvider = chunk.provider;
 
-          // Handle thinking state progress updates
+          // Skip thinking state progress updates
           if (chunk.state === "thinking") {
-            if (chunk.error_detail) {
-              // Progress text (e.g., "Reading dataset...")
-              thinkingStep = chunk.error_detail;
-              setStreamingMsg((prev) => ({
-                id: s.msgId,
-                role: "assistant",
-                content: "",
-                isStreaming: true,
-                thinkingStep: chunk.error_detail,
-              }));
-            }
             continue;
           }
 
@@ -398,7 +478,6 @@ export function ChatPage() {
               addToken(chunk.content);
             }
             if (chunk.done) {
-              // Move the clarifying message into completed messages
               const finalS = streamingRef.current;
               if (finalS.rAFId) {
                 cancelAnimationFrame(finalS.rAFId);
@@ -413,6 +492,7 @@ export function ChatPage() {
                   model: receivedModel || finalS.model,
                   provider: receivedProvider || finalS.provider,
                   isClarifying: true,
+                  timestamp: new Date(),
                 }));
                 finalS.buffer = "";
               }
@@ -427,8 +507,10 @@ export function ChatPage() {
                   model: receivedModel || finalS.model,
                   provider: receivedProvider || finalS.provider,
                   isClarifying: true,
+                  timestamp: new Date(),
                 },
               ]);
+              setShowQuickReplies(true);
               if (!conversationId && receivedConversationId) {
                 setConversationId(receivedConversationId);
               }
@@ -472,6 +554,7 @@ export function ChatPage() {
               isStreaming: false,
               model: receivedModel || finalS.model,
               provider: receivedProvider || finalS.provider,
+              timestamp: new Date(),
             }));
             finalS.buffer = "";
           }
@@ -487,17 +570,16 @@ export function ChatPage() {
               isStreaming: false,
               model: receivedModel || finalS.model,
               provider: receivedProvider || finalS.provider,
+              timestamp: new Date(),
             },
           ]);
+          setShowQuickReplies(true);
 
           if (!conversationId && receivedConversationId) {
             setConversationId(receivedConversationId);
           }
         }
       } catch (err) {
-        // ── Error handling ────────────────────────────────────────
-        // On network interruption or server error, we keep whatever
-        // content was generated so the user doesn't lose their response.
         if (!streamingRef.current.isCancelled) {
           const errS = streamingRef.current;
           if (errS.rAFId) {
@@ -516,6 +598,7 @@ export function ChatPage() {
                 isStreaming: false,
                 model: errS.model,
                 provider: errS.provider,
+                timestamp: new Date(),
               },
             ]);
           }
@@ -527,11 +610,10 @@ export function ChatPage() {
         abortControllerRef.current = null;
       }
     },
-    [datasetId, conversationId, isStreaming, addToken],
+    [datasetId, conversationId, isStreaming, addToken, selectedModel, selectedProvider],
   );
 
-  // ── Refs for stable callbacks ──────────────────────────────────────
-
+  // ── Regenerate message ────────────────────────────────────────────
   const regenerateMessage = useCallback(
     async (messageIndex: number) => {
       if (messageIndex === 0 || messageIndex >= messages.length) return;
@@ -551,7 +633,7 @@ export function ChatPage() {
     [messages, sendMessageWithContent],
   );
 
-  // Stable function refs so memoised ChatMessage doesn't re-render
+  // Stable function refs
   const copyMessage = useCallback(async (content: string) => {
     await navigator.clipboard.writeText(content);
   }, []);
@@ -563,11 +645,18 @@ export function ChatPage() {
     regenerateRef.current(index);
   }, []);
 
-  // ── Utilities ─────────────────────────────────────────────────────
+  const handleReaction = useCallback((messageId: string, reaction: "up" | "down") => {
+    setMessageReactions((prev) => ({ ...prev, [messageId]: reaction }));
+  }, []);
 
+  // ── Utilities ─────────────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
     await sendMessageWithContent(prompt);
   }, [sendMessageWithContent, prompt]);
+
+  const handleQuickReply = useCallback((text: string) => {
+    sendMessageWithContent(text);
+  }, [sendMessageWithContent]);
 
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
@@ -591,7 +680,9 @@ export function ChatPage() {
     setMessages([]);
     setStreamingMsg(null);
     setConversationId(null);
+    setConversationTitle("");
     setShowSuggestions(true);
+    setShowQuickReplies(false);
   };
 
   const exportConversation = () => {
@@ -602,12 +693,14 @@ export function ChatPage() {
     const exportData = {
       datasetId,
       datasetName: datasetsData?.items?.find((d) => d.id === datasetId)?.name || "Unknown",
+      conversationTitle: conversationTitle || `Chat about ${datasetsData?.items?.find((d) => d.id === datasetId)?.name || "dataset"}`,
       exportedAt: new Date().toISOString(),
       messages: allMessages.map((m) => ({
         role: m.role,
         content: m.content,
         model: m.model,
         provider: m.provider,
+        timestamp: m.timestamp?.toISOString(),
       })),
     };
 
@@ -622,27 +715,55 @@ export function ChatPage() {
 
   const selectedDataset = datasetsData?.items?.find((d) => d.id === datasetId);
 
-  // ── Render ────────────────────────────────────────────────────────
+  // Auto-generate conversation title from first user message
+  useEffect(() => {
+    if (messages.length === 1 && messages[0].role === "user" && !conversationTitle) {
+      const title = messages[0].content.slice(0, 50) + (messages[0].content.length > 50 ? "..." : "");
+      setConversationTitle(title);
+    }
+  }, [messages, conversationTitle]);
 
+  // ── Render ────────────────────────────────────────────────────────
   return (
     <TooltipProvider>
       <div className="page-container flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
-         <div className="flex flex-col shrink-0 sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="page-title">AI Chat</h1>
-            <p className="page-subtitle">Ask questions about your data in natural language</p>
+        <div className="flex flex-col shrink-0 sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {conversationTitle && isEditingTitle ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={conversationTitle}
+                  onChange={(e) => setConversationTitle(e.target.value)}
+                  className="h-8 text-lg font-semibold"
+                  autoFocus
+                  onBlur={() => setIsEditingTitle(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setIsEditingTitle(false);
+                    if (e.key === "Escape") setIsEditingTitle(false);
+                  }}
+                />
+                <Button size="sm" variant="ghost" onClick={() => setIsEditingTitle(false)}>
+                  <Check className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <h1 className="page-title">{conversationTitle || "AI Chat"}</h1>
+                {conversationTitle && (
+                  <Button size="sm" variant="ghost" onClick={() => setIsEditingTitle(true)}>
+                    <Edit3 className="w-4 h-4" />
+                  </Button>
+                )}
+              </>
+            )}
           </div>
+          <p className="page-subtitle">Ask questions about your data in natural language</p>
           <div className="flex flex-wrap items-center gap-2">
             {(messages.length > 0 || streamingMsg) && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={exportConversation}
-                      className="gap-1"
-                    >
+                    <Button variant="ghost" size="sm" onClick={exportConversation} className="gap-1">
                       <Download className="size-4" />
                       <span className="hidden sm:inline">Export</span>
                     </Button>
@@ -651,12 +772,7 @@ export function ChatPage() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={clearConversation}
-                      className="gap-1"
-                    >
+                    <Button variant="outline" size="sm" onClick={clearConversation} className="gap-1">
                       <Trash2 className="size-4" />
                       <span className="hidden sm:inline">New Chat</span>
                     </Button>
@@ -709,13 +825,17 @@ export function ChatPage() {
                   </div>
                 ) : (
                   <>
+                    {showQuickReplies && messages.length > 0 && !isStreaming && (
+                      <QuickReplies onQuickReply={handleQuickReply} />
+                    )}
                     {messages.map((msg, idx) => (
                       <ChatMessage
                         key={msg.id}
-                        message={msg}
+                        message={{ ...msg, reaction: messageReactions[msg.id] }}
                         index={idx}
                         onCopy={copyMessage}
                         onRegenerate={handleRegenerate}
+                        onReaction={handleReaction}
                         isLastStreaming={false}
                       />
                     ))}
@@ -724,6 +844,7 @@ export function ChatPage() {
                         key={streamingMsg.id}
                         message={streamingMsg}
                         onCopy={copyMessage}
+                        onReaction={handleReaction}
                         isLastStreaming={true}
                       />
                     )}
@@ -754,10 +875,7 @@ export function ChatPage() {
                   <div className="mb-3 flex items-center gap-2 rounded-lg bg-danger/10 p-3 text-sm text-danger">
                     <span className="flex-1">{error}</span>
                     <Button variant="ghost" size="icon" onClick={() => setError(null)}>
-                      <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
+                      <X className="size-4" />
                     </Button>
                   </div>
                 )}
@@ -836,6 +954,27 @@ export function ChatPage() {
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                <Label>AI Model</Label>
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Auto (default)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Auto (default)</SelectItem>
+                    <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                    <SelectItem value="llama-3.1-70b-versatile">Llama 3.1 70B (Groq)</SelectItem>
+                    <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B (Groq)</SelectItem>
+                    <SelectItem value="gpt-4o">GPT-4o (OpenAI)</SelectItem>
+                    <SelectItem value="gpt-4o-mini">GPT-4o Mini (OpenAI)</SelectItem>
+                    <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Anthropic)</SelectItem>
+                    <SelectItem value="deepseek-chat">DeepSeek Chat</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {selectedDataset && (
                 <div className="rounded-lg bg-muted/30 p-3 space-y-2">
                   <p className="text-xs text-muted">
@@ -876,6 +1015,13 @@ export function ChatPage() {
                 <div className="flex items-center gap-2 text-xs text-muted">
                   <Badge variant="outline" className="text-xs">Active conversation</Badge>
                   <span className="font-mono">{conversationId.slice(0, 8)}...</span>
+                </div>
+              )}
+
+              {messages.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted">
+                  <MessageSquare className="w-3 h-3" />
+                  <span>{messages.length} messages</span>
                 </div>
               )}
             </CardContent>

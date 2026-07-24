@@ -72,7 +72,7 @@ class ProviderManager:
         """Build provider configuration from settings."""
         # Map provider types to environment variable names
         api_key_map = {
-            ProviderType.OPENAI: settings.LLM_API_KEY if settings.LLM_PROVIDER == "openai" else "",
+            ProviderType.OPENAI: getattr(settings, "OPENAI_API_KEY", ""),
             ProviderType.GEMINI: getattr(settings, "GEMINI_API_KEY", ""),
             ProviderType.GROQ: getattr(settings, "GROQ_API_KEY", ""),
             ProviderType.OPENROUTER: getattr(settings, "OPENROUTER_API_KEY", ""),
@@ -91,8 +91,8 @@ class ProviderManager:
 
         default_model_map = {
             ProviderType.OPENAI: settings.LLM_MODEL,
-            ProviderType.GEMINI: "gemini-1.5-flash",
-            ProviderType.GROQ: "llama-3.1-70b-versatile",
+            ProviderType.GEMINI: "gemini-2.0-flash",
+            ProviderType.GROQ: "llama-3.3-70b-versatile",
             ProviderType.OPENROUTER: "google/gemini-2.5-flash",
             ProviderType.ANTHROPIC: "claude-3-5-sonnet-20241022",
             ProviderType.DEEPSEEK: "deepseek-chat",
@@ -100,9 +100,9 @@ class ProviderManager:
 
         available_models_map = {
             ProviderType.OPENAI: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-            ProviderType.GEMINI: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"],
+            ProviderType.GEMINI: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"],
             ProviderType.GROQ: [
-                "llama-3.1-70b-versatile",
+                "llama-3.3-70b-versatile",
                 "llama-3.1-8b-instant",
                 "mixtral-8x7b-32768",
                 "gemma2-9b-it",
@@ -348,7 +348,9 @@ class ProviderManager:
             else:
                 provider = await self.get_provider(provider_type)
 
-            if model and provider.supports_model(model):
+            # Always set the model if specified, even if not in available_models
+            # Some providers support models not listed in their available_models
+            if model:
                 original_model = provider.config.default_model
                 provider.config.default_model = model
                 try:
