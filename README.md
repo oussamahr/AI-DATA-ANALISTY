@@ -4,6 +4,14 @@ An enterprise-grade, AI-first analytics platform similar to **Microsoft Fabric C
 
 The AI is the central interface for interacting with datasets — not just a bolt-on feature.
 
+**Predictive AI** — Machine learning models that forecast trends, detect anomalies, and predict outcomes with accuracy metrics (MAE, MAPE, RMSE).
+
+**Real-Time Processing** — Stream AI responses token-by-token with low-latency inference via Groq and Gemini.
+
+**Enterprise Security** — End-to-end encryption (AES-256), RBAC, audit trails, OIDC/SSO, and multi-tenant isolation via PostgreSQL RLS.
+
+**Natural Language** — Ask questions in plain English. Our AI translates queries into read-only SQL and returns insights instantly.
+
 ## 🎯 Key Features
 
 ### AI-First Architecture
