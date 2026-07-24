@@ -85,6 +85,24 @@ export function useVerifyUser() {
   });
 }
 
+export function useRoles() {
+  return useQuery({
+    queryKey: ["roles"],
+    queryFn: () => api.listRoles(),
+  });
+}
+
+export function useAssignRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roleId, userId }: { roleId: string; userId: string }) =>
+      api.assignRole(roleId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
+}
+
 export function useDeleteDataset() {
   const queryClient = useQueryClient();
   return useMutation({
