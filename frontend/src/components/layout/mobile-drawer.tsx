@@ -62,12 +62,12 @@ export function MobileDrawer({ onLogout }: MobileDrawerProps) {
                 <div className="flex size-9 items-center justify-center rounded-xl bg-accent/20">
                   <BarChart3 className="size-5 text-accent" />
                 </div>
-                <span className="font-semibold text-white">InsightAI</span>
+                <span className="font-semibold text-foreground">Neuralytics</span>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-lg p-2 text-sidebar-foreground/70 hover:bg-white/5 hover:text-white"
+                className="rounded-lg p-2 text-sidebar-foreground/70 hover:bg-foreground/5 hover:text-foreground"
                 aria-label="Close menu"
               >
                 <X className="size-5" />
@@ -80,7 +80,7 @@ export function MobileDrawer({ onLogout }: MobileDrawerProps) {
                   key={item.to}
                   to={item.to}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition hover:bg-white/5 hover:text-white"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition hover:bg-foreground/5 hover:text-foreground"
                 >
                   <item.icon className="size-5" aria-hidden />
                   {item.label}
@@ -90,7 +90,7 @@ export function MobileDrawer({ onLogout }: MobileDrawerProps) {
                 <Link
                   to="/admin"
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition hover:bg-white/5 hover:text-white"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition hover:bg-foreground/5 hover:text-foreground"
                 >
                   <Shield className="size-5" aria-hidden />
                   Admin
@@ -107,7 +107,7 @@ export function MobileDrawer({ onLogout }: MobileDrawerProps) {
                 }}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
-                  "text-sidebar-foreground/70 transition hover:bg-white/5 hover:text-white",
+                  "text-sidebar-foreground/70 transition hover:bg-foreground/5 hover:text-foreground",
                 )}
               >
                 <LogOut className="size-5" aria-hidden />

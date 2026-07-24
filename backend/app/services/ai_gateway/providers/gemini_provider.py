@@ -2,13 +2,14 @@
 Google Gemini provider implementation.
 
 Supports Gemini 1.5 Pro, Gemini 1.5 Flash, and future versions.
+Uses the new google-genai package (replacing deprecated google-generativeai).
 """
 
 import json
 from typing import Any, AsyncGenerator, Optional
 
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig as GeminiGenerationConfig
+from google import genai
+from google.genai import types as gemini_types
 
 from app.services.ai_gateway.providers.base import (
     AIProvider,
@@ -30,7 +31,7 @@ class GeminiProvider(AIProvider):
 
     def __init__(self, config: AIProviderConfig):
         super().__init__(config)
-        self._model: Any = None
+        self._client: Any = None
         self._embedding_model: Any = None
 
     @property
@@ -39,59 +40,68 @@ class GeminiProvider(AIProvider):
 
     @property
     def default_model(self) -> str:
-        return self.config.default_model or "gemini-1.5-flash"
+        return self.config.default_model or "gemini-2.0-flash"
 
     async def initialize(self) -> None:
         """Initialize Gemini client."""
-        genai.configure(api_key=self.config.api_key)
-        self._model = genai.GenerativeModel(self.config.default_model)
-        self._embedding_model = genai.GenerativeModel("embedding-001")
+        self._client = genai.Client(api_key=self.config.api_key)
 
     async def close(self) -> None:
         """Close Gemini client (no explicit close needed)."""
-        self._model = None
-        self._embedding_model = None
+        self._client = None
 
-    def _convert_messages(self, messages: list[ChatMessage]) -> list[dict[str, Any]]:
-        """Convert internal messages to Gemini format."""
+    def _convert_messages(self, messages: list[ChatMessage]) -> list[gemini_types.Content]:
+        """Convert internal messages to Gemini Content format."""
         result = []
         for msg in messages:
             if msg.role == MessageRole.SYSTEM:
                 # Gemini uses system_instruction parameter, not messages
                 continue
             elif msg.role == MessageRole.USER:
-                result.append({"role": "user", "parts": [msg.content]})
+                result.append(
+                    gemini_types.Content(
+                        role="user",
+                        parts=[gemini_types.Part(text=msg.content)],
+                    )
+                )
             elif msg.role == MessageRole.ASSISTANT:
                 if msg.tool_calls:
                     # Handle tool calls
                     parts = []
                     if msg.content:
-                        parts.append(msg.content)
+                        parts.append(gemini_types.Part(text=msg.content))
                     for tc in msg.tool_calls:
                         parts.append(
-                            {
-                                "function_call": {
-                                    "name": tc.name,
-                                    "args": tc.arguments,
-                                }
-                            }
+                            gemini_types.Part(
+                                function_call=gemini_types.FunctionCall(
+                                    name=tc.name,
+                                    args=tc.arguments,
+                                )
+                            )
                         )
-                    result.append({"role": "model", "parts": parts})
+                    result.append(
+                        gemini_types.Content(role="model", parts=parts)
+                    )
                 else:
-                    result.append({"role": "model", "parts": [msg.content]})
+                    result.append(
+                        gemini_types.Content(
+                            role="model",
+                            parts=[gemini_types.Part(text=msg.content)] if msg.content else [],
+                        )
+                    )
             elif msg.role == MessageRole.TOOL:
                 result.append(
-                    {
-                        "role": "user",
-                        "parts": [
-                            {
-                                "function_response": {
-                                    "name": msg.name or "unknown",
-                                    "response": {"content": msg.content},
-                                }
-                            }
+                    gemini_types.Content(
+                        role="user",
+                        parts=[
+                            gemini_types.Part(
+                                function_response=gemini_types.FunctionResponse(
+                                    name=msg.name or "unknown",
+                                    response={"content": msg.content},
+                                )
+                            )
                         ],
-                    }
+                    )
                 )
         return result
 
@@ -102,7 +112,7 @@ class GeminiProvider(AIProvider):
                 return msg.content
         return None
 
-    def _convert_tools(self, tools: Optional[list[dict[str, Any]]]) -> Optional[list[dict[str, Any]]]:
+    def _convert_tools(self, tools: Optional[list[dict[str, Any]]]) -> Optional[list[gemini_types.Tool]]:
         """Convert tools to Gemini format."""
         if not tools:
             return None
@@ -112,19 +122,19 @@ class GeminiProvider(AIProvider):
             if tool.get("type") == "function":
                 func = tool.get("function", {})
                 function_declarations.append(
-                    {
-                        "name": func.get("name"),
-                        "description": func.get("description", ""),
-                        "parameters": func.get("parameters", {}),
-                    }
+                    gemini_types.FunctionDeclaration(
+                        name=func.get("name"),
+                        description=func.get("description", ""),
+                        parameters=func.get("parameters", {}),
+                    )
                 )
-        return [{"function_declarations": function_declarations}] if function_declarations else None
+        return [gemini_types.Tool(function_declarations=function_declarations)] if function_declarations else None
 
     def _convert_vision_messages(
         self,
         messages: list[ChatMessage],
         images: list[VisionInput],
-    ) -> list[dict[str, Any]]:
+    ) -> list[gemini_types.Content]:
         """Convert messages with images to Gemini format."""
         result = []
         for msg in messages:
@@ -133,34 +143,47 @@ class GeminiProvider(AIProvider):
             elif msg.role == MessageRole.USER:
                 parts = []
                 if msg.content:
-                    parts.append(msg.content)
+                    parts.append(gemini_types.Part(text=msg.content))
                 for img in images:
                     if img.image_base64:
                         parts.append(
-                            {
-                                "mime_type": "image/jpeg",
-                                "data": img.image_base64,
-                            }
+                            gemini_types.Part(
+                                inline_data=gemini_types.Blob(
+                                    mimeType="image/jpeg",
+                                    data=img.image_base64,
+                                )
+                            )
                         )
                     elif img.image_url:
                         # For URL images, we'd need to fetch them first
                         # For now, just add as text reference
-                        parts.append(f"[Image: {img.image_url}]")
-                result.append({"role": "user", "parts": parts})
+                        parts.append(gemini_types.Part(text=f"[Image: {img.image_url}]"))
+                result.append(
+                    gemini_types.Content(role="user", parts=parts)
+                )
             elif msg.role == MessageRole.ASSISTANT:
-                result.append({"role": "model", "parts": [msg.content] if msg.content else []})
+                result.append(
+                    gemini_types.Content(
+                        role="model",
+                        parts=[gemini_types.Part(text=msg.content)] if msg.content else [],
+                    )
+                )
         return result
 
-    def _build_generation_config(self, config: GenerationConfig) -> GeminiGenerationConfig:
+    def _build_generate_content_config(self, config: GenerationConfig) -> gemini_types.GenerateContentConfig:
         """Build Gemini generation config."""
-        return GeminiGenerationConfig(
+        gc = gemini_types.GenerateContentConfig(
             temperature=config.temperature,
-            max_output_tokens=config.max_tokens,
-            top_p=config.top_p,
-            top_k=config.top_k if config.top_k > 0 else None,
-            stop_sequences=config.stop_sequences or None,
-            response_mime_type="application/json" if config.response_format else None,
+            maxOutputTokens=config.max_tokens,
+            topP=config.top_p,
         )
+        if config.stop_sequences:
+            gc.stopSequences = config.stop_sequences
+        if config.top_k > 0:
+            gc.topK = config.top_k
+        if config.response_format:
+            gc.responseMimeType = "application/json"
+        return gc
 
     async def chat(
         self,
@@ -169,29 +192,23 @@ class GeminiProvider(AIProvider):
         tools: Optional[list[dict[str, Any]]] = None,
     ) -> ChatResponse:
         """Generate chat completion."""
-        if not self._model:
+        if not self._client:
             await self.initialize()
 
         config = config or GenerationConfig()
         system_instruction = self._extract_system_instruction(messages)
         gemini_messages = self._convert_messages(messages)
         gemini_tools = self._convert_tools(tools)
-        generation_config = self._build_generation_config(config)
+        generation_config = self._build_generate_content_config(config)
 
-        # Create model with system instruction if present
+        # Add system instruction to config if present
         if system_instruction:
-            model = genai.GenerativeModel(
-                self.config.default_model,
-                system_instruction=system_instruction,
-                tools=gemini_tools,
-            )
-        else:
-            model = self._model
+            generation_config.system_instruction = system_instruction
 
-        response = await model.generate_content_async(
-            gemini_messages,
-            generation_config=generation_config,
-            tools=gemini_tools,
+        response = await self._client.aio.models.generate_content(
+            model=self.config.default_model,
+            contents=gemini_messages,
+            config=generation_config,
         )
 
         # Extract content and tool calls
@@ -214,15 +231,19 @@ class GeminiProvider(AIProvider):
                             )
                         )
 
+        usage = {}
+        if response.usage_metadata:
+            usage = {
+                "prompt_tokens": response.usage_metadata.prompt_token_count,
+                "completion_tokens": response.usage_metadata.candidates_token_count,
+                "total_tokens": response.usage_metadata.total_token_count,
+            }
+
         return ChatResponse(
             content=content,
             model=self.config.default_model,
             provider=self.provider_type,
-            usage={
-                "prompt_tokens": response.usage_metadata.prompt_token_count if response.usage_metadata else 0,
-                "completion_tokens": response.usage_metadata.candidates_token_count if response.usage_metadata else 0,
-                "total_tokens": response.usage_metadata.total_token_count if response.usage_metadata else 0,
-            },
+            usage=usage,
             finish_reason=response.candidates[0].finish_reason.name if response.candidates else None,
             tool_calls=tool_calls,
         )
@@ -234,29 +255,22 @@ class GeminiProvider(AIProvider):
         tools: Optional[list[dict[str, Any]]] = None,
     ) -> AsyncGenerator[StreamChunk, None]:
         """Stream chat completion."""
-        if not self._model:
+        if not self._client:
             await self.initialize()
 
         config = config or GenerationConfig()
         system_instruction = self._extract_system_instruction(messages)
         gemini_messages = self._convert_messages(messages)
         gemini_tools = self._convert_tools(tools)
-        generation_config = self._build_generation_config(config)
+        generation_config = self._build_generate_content_config(config)
 
         if system_instruction:
-            model = genai.GenerativeModel(
-                self.config.default_model,
-                system_instruction=system_instruction,
-                tools=gemini_tools,
-            )
-        else:
-            model = self._model
+            generation_config.system_instruction = system_instruction
 
-        stream = await model.generate_content_async(
-            gemini_messages,
-            generation_config=generation_config,
-            tools=gemini_tools,
-            stream=True,
+        stream = await self._client.aio.models.generate_content_stream(
+            model=self.config.default_model,
+            contents=gemini_messages,
+            config=generation_config,
         )
 
         tool_calls_buffer: list[ToolCall] = []
@@ -310,20 +324,22 @@ class GeminiProvider(AIProvider):
         model: Optional[str] = None,
     ) -> EmbeddingResponse:
         """Generate embeddings using Gemini embedding model."""
-        if not self._embedding_model:
+        if not self._client:
             await self.initialize()
 
-        embedding_model_name = model or "embedding-001"
+        embedding_model_name = model or "text-embedding-004"
         embeddings = []
 
         # Process in batches for efficiency
         for text in texts:
-            result = await genai.embed_content_async(
+            result = await self._client.aio.models.embed_content(
                 model=embedding_model_name,
-                content=text,
-                task_type="retrieval_document",
+                contents=text,
+                config=gemini_types.EmbedContentConfig(
+                    taskType="RETRIEVAL_DOCUMENT",
+                ),
             )
-            embeddings.append(result["embedding"])
+            embeddings.append(result.embeddings[0].values)
 
         return EmbeddingResponse(
             embeddings=embeddings,
@@ -339,25 +355,21 @@ class GeminiProvider(AIProvider):
         config: Optional[GenerationConfig] = None,
     ) -> ChatResponse:
         """Generate response with vision input."""
-        if not self._model:
+        if not self._client:
             await self.initialize()
 
         config = config or GenerationConfig()
         system_instruction = self._extract_system_instruction(messages)
         vision_messages = self._convert_vision_messages(messages, images)
-        generation_config = self._build_generation_config(config)
+        generation_config = self._build_generate_content_config(config)
 
         if system_instruction:
-            model = genai.GenerativeModel(
-                self.config.default_model,
-                system_instruction=system_instruction,
-            )
-        else:
-            model = self._model
+            generation_config.system_instruction = system_instruction
 
-        response = await model.generate_content_async(
-            vision_messages,
-            generation_config=generation_config,
+        response = await self._client.aio.models.generate_content(
+            model=self.config.default_model,
+            contents=vision_messages,
+            config=generation_config,
         )
 
         content = ""
@@ -368,14 +380,18 @@ class GeminiProvider(AIProvider):
                     if hasattr(part, "text") and part.text:
                         content += part.text
 
+        usage = {}
+        if response.usage_metadata:
+            usage = {
+                "prompt_tokens": response.usage_metadata.prompt_token_count,
+                "completion_tokens": response.usage_metadata.candidates_token_count,
+                "total_tokens": response.usage_metadata.total_token_count,
+            }
+
         return ChatResponse(
             content=content,
             model=self.config.default_model,
             provider=self.provider_type,
-            usage={
-                "prompt_tokens": response.usage_metadata.prompt_token_count if response.usage_metadata else 0,
-                "completion_tokens": response.usage_metadata.candidates_token_count if response.usage_metadata else 0,
-                "total_tokens": response.usage_metadata.total_token_count if response.usage_metadata else 0,
-            },
+            usage=usage,
             finish_reason=response.candidates[0].finish_reason.name if response.candidates else None,
         )

@@ -22,6 +22,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.models.dataset import Dataset
 from app.models.user import User
+from app.services.post_query_redactor import redactor
 from app.services.data_loader import (
     load_dataframe,
     infer_column_dtype,
@@ -320,7 +321,7 @@ class ContextBuilder:
         distributions = compute_distributions(df)
         statistics = compute_statistics(df)
         
-        sample_rows = df.head(max_sample_rows).to_dict(orient="records")
+        sample_rows = redactor.redact_dataframe(df.head(max_sample_rows)).to_dict(orient="records")
         sample_rows = self._convert_sample_rows(sample_rows)
         
         total_cells = len(df) * len(df.columns)

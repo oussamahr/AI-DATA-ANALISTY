@@ -15,6 +15,7 @@ from app.models import AnalysisResult, AnalysisRun, DataProfile, Dataset, User
 from app.services.data_loader import (
     load_dataframe,
     infer_column_dtype,
+    detect_semantic_type,
     compute_histogram,
     compute_top_values,
     coerce_numeric,
@@ -67,6 +68,7 @@ class AnalyticsService:
                 dataset_id=ds.id,
                 column_name=str(col_name),
                 dtype=dtype,
+                semantic_type=detect_semantic_type(series, str(col_name)),
                 null_count=null_count,
                 total_count=total,
                 unique_count=int(cleaned.nunique()),

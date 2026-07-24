@@ -31,7 +31,7 @@ def _sanitize_csv_value(val: str) -> str:
 def _sanitize_csv_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Sanitize all string columns in a DataFrame for safe CSV export."""
     df = df.copy()
-    for col in df.select_dtypes(include=["object"]).columns:
+    for col in df.select_dtypes(include=["object", "str"]).columns:
         df[col] = df[col].apply(lambda x: _sanitize_csv_value(str(x)) if pd.notna(x) else x)
     return df
 

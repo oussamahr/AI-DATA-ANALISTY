@@ -50,6 +50,7 @@ class DataProfile(Base, TimestampMixin):
     dataset_id = Column(Uuid(), ForeignKey("datasets.id"), nullable=False)
     column_name = Column(String(255), nullable=False)
     dtype = Column(String(50), nullable=False)
+    semantic_type = Column(String(50), nullable=True)
     null_count = Column(Integer, default=0)
     total_count = Column(Integer, default=0)
     unique_count = Column(Integer, default=0)

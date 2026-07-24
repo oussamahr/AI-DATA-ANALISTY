@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Bell, ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Settings, User, Sun, Moon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search";
@@ -8,6 +8,7 @@ import { MobileMenuButton } from "@/components/layout/mobile-drawer";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/store";
 import { getInitials } from "@/utils/cn";
+import { useTheme } from "@/contexts/theme-context";
 
 interface NavbarProps {
   title?: string;
@@ -15,6 +16,7 @@ interface NavbarProps {
 
 export function Navbar({ title }: NavbarProps) {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
@@ -41,8 +43,23 @@ export function Navbar({ title }: NavbarProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          aria-label="Notifications"
+          onClick={() => {}}
+        >
           <Bell className="size-5" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
         </Button>
 
         <DropdownMenu.Root>

@@ -202,7 +202,8 @@ class LLMService:
                 duration_ms=duration,
                 success=False,
             )
-            raise AppException(f"LLM query failed: {str(e)}") from e
+            # Don't leak internal error details to the client
+            raise AppException("LLM query failed. Please try again.") from e
         finally:
             self.db.add(query_record)
             await self.db.flush()
@@ -275,7 +276,7 @@ class LLMService:
                 duration_ms=duration,
                 success=False,
             )
-            raise AppException(f"LLM structured query failed: {str(e)}") from e
+            raise AppException("LLM structured query failed. Please try again.") from e
         finally:
             self.db.add(query_record)
             await self.db.flush()

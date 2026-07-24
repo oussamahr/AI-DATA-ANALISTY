@@ -7,6 +7,8 @@ logic to eliminate duplication across services.
 
 import math
 import warnings
+import csv
+import io
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +18,31 @@ import pandas as pd
 from app.core.security.exceptions import AppException
 
 # File extension to reader function mapping
+MAX_DATASET_ROWS = 500_000
+TEXT_ENCODINGS = ("utf-8-sig", "utf-8", "cp1252", "latin-1")
+
+
+def _read_delimited(path: str, sep: str | None = None):
+    raw = Path(path).read_bytes()
+    for encoding in TEXT_ENCODINGS:
+        try:
+            text = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        text = raw.decode("latin-1")
+    if sep is None:
+        try:
+            sep = csv.Sniffer().sniff(text[:65536], delimiters=",;\t|").delimiter
+        except csv.Error:
+            sep = ","
+    return pd.read_csv(io.StringIO(text), sep=sep, low_memory=False, on_bad_lines="skip")
+
+
 DATA_EXTENSION_READERS = {
-    ".csv": lambda p: pd.read_csv(p, low_memory=False, parse_dates=True),
-    ".tsv": lambda p: pd.read_csv(p, sep="\t", low_memory=False, parse_dates=True),
+    ".csv": _read_delimited,
+    ".tsv": lambda p: _read_delimited(p, "\t"),
     ".xlsx": lambda p: pd.read_excel(p, engine="openpyxl"),
     ".xls": lambda p: pd.read_excel(p, engine="xlrd"),
     ".json": lambda p: pd.read_json(p),
@@ -27,7 +51,7 @@ DATA_EXTENSION_READERS = {
 }
 
 
-def load_dataframe(file_path: str) -> pd.DataFrame:
+def load_dataframe(file_path: str, *, enforce_cap: bool = True) -> pd.DataFrame:
     """
     Load a DataFrame from a file path with automatic format detection.
     
@@ -51,6 +75,9 @@ def load_dataframe(file_path: str) -> pd.DataFrame:
     except Exception as e:
         raise AppException(f"Failed to read dataset: {str(e)}", 422) from e
     
+    if enforce_cap and len(df) > MAX_DATASET_ROWS:
+        raise AppException(f"Dataset has {len(df):,} rows, exceeding max of {MAX_DATASET_ROWS:,}.", 413)
+
     # Auto-detect datetime columns in object/string columns
     for col in df.select_dtypes(include=["object", "str", "string"]).columns:
         try:
@@ -94,7 +121,7 @@ def detect_column_type(series: pd.Series) -> tuple[bool, bool, bool, bool]:
     Returns:
         Tuple of (is_numeric, is_datetime, is_categorical, is_identifier)
     """
-    is_numeric = pd.api.types.is_numeric_dtype(series)
+    is_numeric = pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(series)
     is_datetime = pd.api.types.is_datetime64_any_dtype(series)
     
     n_unique = series.nunique()
@@ -168,7 +195,7 @@ def compute_outliers(series: pd.Series) -> tuple[list[int], dict[str, Any]]:
 
 def compute_correlations(df: pd.DataFrame) -> dict[str, dict[str, float]]:
     """Compute correlation matrix for numeric columns."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
     
     if len(numeric_cols) < 2:
         return {}
@@ -188,7 +215,7 @@ def compute_correlations(df: pd.DataFrame) -> dict[str, dict[str, float]]:
 
 def compute_distributions(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     """Compute distribution histograms for numeric columns."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
     
     distributions = {}
     for col in numeric_cols:
@@ -212,7 +239,7 @@ def compute_distributions(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
 
 def compute_statistics(df: pd.DataFrame) -> dict[str, dict[str, float]]:
     """Compute descriptive statistics for numeric columns."""
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
     
     statistics = {}
     for col in numeric_cols:
@@ -242,3 +269,22 @@ def coerce_numeric(val: Any) -> float | None:
         return float(val)
     except (ValueError, TypeError):
         return None
+
+def detect_semantic_type(series: pd.Series, name: str) -> str:
+    """Conservative semantic hint layered on top of the broad inferred dtype."""
+    n = name.lower().replace(" ", "_")
+    values = series.dropna().astype(str).str.strip()
+    if not len(values):
+        return infer_column_dtype(series)
+    if any(x in n for x in ("percent", "percentage", "rate")):
+        if pd.to_numeric(values.str.rstrip("%"), errors="coerce").notna().mean() > .8:
+            return "percentage"
+    if any(x in n for x in ("amount", "price", "cost", "revenue", "salary", "currency")):
+        return "currency"
+    if any(x in n for x in ("id", "key", "code")) or series.nunique() / max(len(series), 1) > .95:
+        return "identifier"
+    if values.str.lower().isin({"true", "false", "yes", "no", "y", "n"}).mean() > .8:
+        return "boolean_like"
+    if any(x in n for x in ("lat", "latitude", "lon", "longitude", "country", "city", "postal", "zip")):
+        return "geo"
+    return infer_column_dtype(series)
