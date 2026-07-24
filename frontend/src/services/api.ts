@@ -390,7 +390,7 @@ class ApiService {
             }
             let parsed: any;
             try {
-              parsed = JSON.parse(data);
+              parsed = JSON.parse(data.trim());
             } catch {
               continue;
             }
@@ -455,6 +455,29 @@ class ApiService {
       }
     } finally {
       reader.releaseLock();
+    }
+
+    // Process any leftover data in the buffer after stream ends
+    if (buffer.trim().startsWith("data: ")) {
+      const leftoverData = buffer.trim().slice(6);
+      if (leftoverData === "[DONE]") {
+        yield { content: "", done: true, conversation_id: conversationIdReceived };
+      } else {
+        try {
+          const leftoverParsed = JSON.parse(leftoverData.trim());
+          if (leftoverParsed.error) {
+            throw new Error(leftoverParsed.error);
+          }
+          if (leftoverParsed.conversation_id && !conversationIdReceived) {
+            conversationIdReceived = leftoverParsed.conversation_id;
+          }
+          if (leftoverParsed.content) {
+            yield { content: leftoverParsed.content, done: leftoverParsed.done || false, conversation_id: conversationIdReceived, model: leftoverParsed.model, provider: leftoverParsed.provider };
+          }
+        } catch {
+          // Ignore leftover partial data
+        }
+      }
     }
 
     yield { content: "", done: true, conversation_id: conversationIdReceived };

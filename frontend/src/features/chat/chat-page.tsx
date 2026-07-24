@@ -36,7 +36,7 @@ import { useDatasets } from "@/hooks/use-api";
 import { api } from "@/services/api";
 import { getErrorMessage } from "@/utils/cn";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { StreamingCursor } from "@/components/ui/typing-indicator";
+import { StreamingCursor, ThinkingBubble } from "@/components/ui/typing-indicator";
 import { useChatScroll } from "@/hooks/use-chat-scroll";
 
 interface Message {
@@ -157,7 +157,8 @@ const ChatMessage = memo(function ChatMessage({
           <>
             <div className="min-h-[1em]">
               {isLastStreaming && message.content === "" ? (
-                <StreamingCursor className="bg-primary" />
+                // Waiting for the first token: rounded thinking bubble with animated dots
+                <ThinkingBubble />
               ) : (
                 <MarkdownRenderer content={message.content} isStreaming={isLastStreaming} />
               )}
@@ -333,9 +334,7 @@ export function ChatPage() {
   // ── Cleanup rAF on unmount ────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (streamingRef.current.rAFId) {
-        cancelAnimationFrame(streamingRef.current.rAFId);
-      }
+      // No rAF scheduling used for progressive streaming
     };
   }, []);
 
