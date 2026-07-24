@@ -42,6 +42,9 @@ class ChatMessage:
     tool_call_id: Optional[str] = None
     tool_calls: Optional[list["ToolCall"]] = None
 
+    def __getitem__(self, key: str):
+        return self.to_dict()[key]
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for provider APIs."""
         result = {"role": self.role.value, "content": self.content}

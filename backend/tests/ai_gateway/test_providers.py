@@ -52,7 +52,7 @@ class TestProviderConfig:
         config = AIProviderConfig(
             provider_type=ProviderType.GROQ,
             api_key="test-key",
-            default_model="llama-3.1-70b-versatile",
+            default_model="llama-3.3-70b-versatile",
         )
         assert config.provider_type == ProviderType.GROQ
         assert config.supports_embeddings is False
@@ -93,18 +93,20 @@ class TestProviderInitialization:
         )
         provider = GeminiProvider(config)
 
-        with patch("google.generativeai.configure") as mock_configure:
-            with patch("google.generativeai.GenerativeModel") as mock_model:
-                await provider.initialize()
-                mock_configure.assert_called_once_with(api_key="test-key")
-                assert provider._model is not None
+        with patch("app.services.ai_gateway.providers.gemini_provider.genai.Client") as mock_client:
+            mock_instance = AsyncMock()
+            mock_client.return_value = mock_instance
+
+            await provider.initialize()
+            assert provider._client is not None
+            mock_client.assert_called_once_with(api_key="test-key")
 
     @pytest.mark.asyncio
     async def test_groq_provider_init(self):
         config = AIProviderConfig(
             provider_type=ProviderType.GROQ,
             api_key="test-key",
-            default_model="llama-3.1-70b-versatile",
+            default_model="llama-3.3-70b-versatile",
         )
         provider = GroqProvider(config)
 

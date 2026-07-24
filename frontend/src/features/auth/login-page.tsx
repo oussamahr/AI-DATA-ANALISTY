@@ -48,7 +48,7 @@ export function LoginPage() {
     <Card className="border-border/60 shadow-card">
       <CardHeader>
         <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your InsightAI account</CardDescription>
+        <CardDescription>Sign in to your Neuralytics account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>

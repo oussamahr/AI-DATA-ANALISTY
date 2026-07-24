@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 class ColumnProfile(BaseModel):
     column_name: str
     dtype: str
+    semantic_type: str | None = None
     null_count: int
     total_count: int
     null_percent: float

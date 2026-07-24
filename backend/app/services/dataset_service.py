@@ -13,6 +13,7 @@ from app.core.database import get_session
 from app.core.security.scanner import scanner
 from app.core.security.validators import validate_file_extension, validate_file_size
 from app.core.storage.s3 import s3_storage
+from app.services.data_loader import MAX_DATASET_ROWS
 from app.models.dataset import Dataset
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -120,6 +121,8 @@ class DatasetService:
             file_path = str(stored_path)
 
         row_count, column_defs = await self._extract_metadata(content, ext)
+        if row_count > MAX_DATASET_ROWS:
+            raise HTTPException(status_code=413, detail=f"Dataset has {row_count:,} rows, exceeding max of {MAX_DATASET_ROWS:,}.")
 
         dataset = Dataset(
             id=file_id,

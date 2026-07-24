@@ -14,6 +14,7 @@ from app.models.analysis import AnalysisResult, AnalysisRun
 from app.models.dataset import Dataset
 from app.models.user import User
 from app.services.analytics_service import _load_dataframe
+from app.services.post_query_redactor import redactor
 
 SYSTEM_PROMPT = """You are a data analyst AI. Given dataset metadata and a sample of rows, provide structured insights.
 Focus on:
@@ -73,7 +74,7 @@ class AIAnalyticsService:
 
         try:
             df = _load_dataframe(ds.file_path)
-            sample = df.head(max_sample_rows)
+            sample = redactor.redact_dataframe(df.head(max_sample_rows))
             dtypes = {str(col): str(dtype) for col, dtype in df.dtypes.items()}
             null_counts = {str(col): int(df[col].isna().sum()) for col in df.columns}
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()

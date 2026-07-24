@@ -242,15 +242,15 @@ class AIAnalyticsEngine:
 
     def _prepare_dataset_context(self, df: pd.DataFrame, max_rows: int = 50) -> dict[str, Any]:
         """Prepare dataset context for AI prompts."""
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        numeric_cols = df.select_dtypes(include=[np.number]).columns[~df.select_dtypes(include=[np.number]).dtypes.astype(str).isin(["bool", "boolean"])].tolist()
         cat_cols = df.select_dtypes(include=["object", "category", "string"]).columns.tolist()
-        date_cols = df.select_dtypes(include=["datetime64"]).columns.tolist()
+        date_cols = df.select_dtypes(include=["datetime"]).columns.tolist()
 
         # Column profiles
         columns = {}
         for col in df.columns:
             series = df[col]
-            dtype = str(series.dtype)
+            dtype = "datetime64[ns]" if pd.api.types.is_datetime64_any_dtype(series) else str(series.dtype)
             null_count = int(series.isna().sum())
             unique_count = int(series.nunique())
 
@@ -270,7 +270,7 @@ class AIAnalyticsEngine:
                     "median": float(series.median()) if not series.isna().all() else None,
                     "std": float(series.std()) if not series.isna().all() else None,
                 })
-            elif dtype == "datetime64[ns]":
+            elif str(dtype).startswith("datetime64"):
                 col_info.update({
                     "min": str(series.min()) if not series.isna().all() else None,
                     "max": str(series.max()) if not series.isna().all() else None,
@@ -316,7 +316,7 @@ class AIAnalyticsEngine:
         when a dataset is uploaded.
         """
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
 
         context = self._prepare_dataset_context(df)
 
@@ -565,7 +565,7 @@ class AIAnalyticsEngine:
     ) -> DataQualityReport:
         """Comprehensive data quality assessment."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Use AI to identify issues
@@ -617,7 +617,7 @@ class AIAnalyticsEngine:
     ) -> InsightsReport:
         """Generate intelligent, ranked insights."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Use the AI insights prompt
@@ -715,7 +715,7 @@ class AIAnalyticsEngine:
     ) -> CleaningPlan:
         """Generate executable data cleaning plan."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Get issues from quality assessment
@@ -751,7 +751,7 @@ class AIAnalyticsEngine:
     ) -> dict[str, Any]:
         """Execute a cleaning plan and return results."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         original_shape = df.shape
 
         results = {"steps_executed": [], "rows_affected": 0, "errors": []}
@@ -853,7 +853,7 @@ class AIAnalyticsEngine:
     ) -> ForecastResult:
         """Generate time series forecast."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
 
         # Prepare historical data for prompt
         historical = df[[date_column, value_column]].dropna().tail(100)
@@ -895,7 +895,7 @@ class AIAnalyticsEngine:
     ) -> AnomalyReport:
         """Detect anomalies in dataset."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -933,7 +933,7 @@ class AIAnalyticsEngine:
     ) -> ChartRecommendations:
         """Recommend optimal visualizations."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -970,7 +970,7 @@ class AIAnalyticsEngine:
     ) -> SQLQueryResult:
         """Convert natural language to safe SQL."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
 
         # Build schema info
         schema = {}
@@ -1023,7 +1023,7 @@ class AIAnalyticsEngine:
     ) -> str:
         """Explain SQL in plain language."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
 
         schema = {}
         for col in df.columns:
@@ -1052,7 +1052,7 @@ class AIAnalyticsEngine:
     ) -> ReportContent:
         """Generate executive report."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Get insights
@@ -1095,7 +1095,7 @@ class AIAnalyticsEngine:
     ) -> ReportContent:
         """Generate technical report."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -1128,7 +1128,7 @@ class AIAnalyticsEngine:
     ) -> ReportContent:
         """Generate business report."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -1166,7 +1166,7 @@ class AIAnalyticsEngine:
     ) -> DashboardSpec:
         """Generate complete dashboard specification."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         prompt = self.prompts.render_prompt(
@@ -1196,7 +1196,7 @@ class AIAnalyticsEngine:
     ) -> dict[str, Any]:
         """Chat with AI about a dataset with memory."""
         ds = await self._get_dataset(dataset_id, user)
-        df = load_dataframe(ds.file_path)
+        df = _load_dataframe(ds.file_path)
         context = self._prepare_dataset_context(df)
 
         # Get or create conversation
@@ -1232,6 +1232,46 @@ Key Columns: {', '.join(list(context['columns'].keys())[:10])}
 Answer the user's question based on this dataset context. If you need to run analysis, explain what you would do."""
         messages.insert(0, ChatMessage(role=MessageRole.SYSTEM, content=system_content))
         messages.append(ChatMessage(role=MessageRole.USER, content=message))
+
+        # Check for ambiguity before generating full response
+        # If the query references columns that don't exist or is too vague,
+        # ask a clarifying question instead of guessing
+        clarifying = await self._check_for_clarification(message, df, context)
+        if clarifying:
+            # Store user message in memory
+            await self.memory.add_message(
+                conversation_id=conversation_id,
+                role=MessageRole.USER,
+                content=message,
+                user=user,
+                model="",
+                provider="",
+                tokens_prompt=0,
+                tokens_completion=0,
+                duration_ms=0,
+                dataset_id=dataset_id,
+            )
+            # Store clarifying question in memory
+            await self.memory.add_message(
+                conversation_id=conversation_id,
+                role=MessageRole.ASSISTANT,
+                content=clarifying,
+                user=user,
+                model="",
+                provider="",
+                tokens_prompt=0,
+                tokens_completion=0,
+                duration_ms=0,
+                dataset_id=dataset_id,
+            )
+            return {
+                "conversation_id": str(conversation_id),
+                "response": clarifying,
+                "model": "",
+                "provider": "",
+                "usage": {},
+                "state": "clarifying",
+            }
 
         # Get AI response
         response = await self.gateway.chat(messages=messages)
@@ -1269,7 +1309,40 @@ Answer the user's question based on this dataset context. If you need to run ana
             "model": response.model,
             "provider": response.provider.value,
             "usage": response.usage,
+            "state": "answer",
         }
+
+    async def _check_for_clarification(self, message: str, df: pd.DataFrame, context: dict[str, Any]) -> Optional[str]:
+        """Check if the user's query is ambiguous and needs clarification.
+        
+        Returns a clarifying question string if ambiguous, None if the query
+        can be answered directly.
+        """
+        # Check for empty or very short queries
+        if len(message.strip()) < 3:
+            return "Could you please provide more detail about what you'd like to know?"
+        
+        # Check for vague references to columns that don't exist
+        # Look for column-like references in the query
+        words = message.lower().split()
+        available_columns = set(context.get("columns", {}).keys())
+        
+        # If the query mentions specific column names that don't exist
+        # and the query seems to reference data columns (not general questions)
+        referenced_cols = []
+        for word in words:
+            # Remove punctuation
+            clean_word = word.strip(".,;:!?()[]{}\"'")
+            if clean_word in available_columns:
+                referenced_cols.append(clean_word)
+        
+        # If no columns are referenced but the query is about specific data
+        # (e.g., "show me the data" without specifying what data)
+        if not referenced_cols:
+            vague_indicators = ["show me", "give me", "what is", "how much", "which", "list"]
+            if any(indicator in message.lower() for indicator in vague_indicators):
+                if len(message.split()) < 6:  # Very short vague query
+                    return f"I'd be happy to help! Could you be more specific about what you'd like to know about the {context.get('row_count', '?')} rows in this dataset? For example, you could ask about specific columns like: {', '.join(list(available_columns)[:5])}."
 
 
 # Global engine instance

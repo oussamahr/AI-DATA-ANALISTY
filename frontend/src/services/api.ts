@@ -65,6 +65,17 @@ class ApiService {
       headers: { "Content-Type": "application/json" },
     });
 
+    this.client.interceptors.request.use((config) => {
+      const csrf = document.cookie
+        .split("; ")
+        .find((cookie) => cookie.startsWith("ai_data_csrf="))
+        ?.split("=")[1];
+      if (csrf && ["post", "put", "patch", "delete"].includes((config.method ?? "").toLowerCase())) {
+        config.headers["X-CSRF-Token"] = decodeURIComponent(csrf);
+      }
+      return config;
+    });
+
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError<ApiErrorBody>) => {
@@ -314,6 +325,9 @@ class ApiService {
       model: string;
       provider: string;
       usage: { prompt_tokens: number; completion_tokens: number };
+      state?: string;
+      error_category?: string;
+      error_detail?: string;
     }>(`/ai/chat/${datasetId}`, {
       message,
       conversation_id: conversationId,
@@ -326,14 +340,17 @@ class ApiService {
     message: string,
     conversationId?: string,
     signal?: AbortSignal,
-  ): AsyncGenerator<{ content: string; done: boolean; conversation_id?: string; model?: string; provider?: string }, void, unknown> {
+    model?: string,
+    provider?: string,
+  ): AsyncGenerator<{ content: string; done: boolean; conversation_id?: string; model?: string; provider?: string; state?: string; error_category?: string; error_detail?: string }, void, unknown> {
     let response: Response;
     try {
+      await this.client.post("/auth/refresh").catch(() => {});
       response = await fetch(`${API_BASE}/ai/chat/stream/${datasetId}`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, conversation_id: conversationId }),
+        body: JSON.stringify({ message, conversation_id: conversationId, model, provider }),
         signal,
       });
     } catch (e) {
@@ -383,6 +400,53 @@ class ApiService {
             if (parsed.conversation_id && !conversationIdReceived) {
               conversationIdReceived = parsed.conversation_id;
             }
+            // Handle thinking state progress updates
+            if (parsed.state === "thinking" && !parsed.content) {
+              // Progress update - yield as a special chunk with state but no content
+              yield {
+                content: "",
+                done: false,
+                conversation_id: conversationIdReceived,
+                state: "thinking",
+              };
+              continue;
+            }
+            // Handle thinking state with content (progress text)
+            if (parsed.state === "thinking" && parsed.content) {
+              yield {
+                content: "",
+                done: false,
+                conversation_id: conversationIdReceived,
+                state: "thinking",
+                // The content field carries the progress text (e.g., "Reading dataset...")
+                // We use a special marker so the frontend can display it
+                error_detail: parsed.content,
+              };
+              continue;
+            }
+            // Handle clarifying state
+            if (parsed.state === "clarifying") {
+              yield {
+                content: parsed.content || "",
+                done: parsed.done || false,
+                conversation_id: conversationIdReceived,
+                state: "clarifying",
+              };
+              continue;
+            }
+            // Handle error state
+            if (parsed.state === "error") {
+              yield {
+                content: "",
+                done: true,
+                conversation_id: conversationIdReceived,
+                state: "error",
+                error_category: parsed.error_category,
+                error_detail: parsed.error_detail,
+              };
+              return;
+            }
+            // Normal content chunk
             if (parsed.content) {
               yield { content: parsed.content, done: parsed.done || false, conversation_id: conversationIdReceived, model: parsed.model, provider: parsed.provider };
             }
@@ -515,6 +579,37 @@ class ApiService {
 
   async suggestForecastingApproach(datasetId: string, request: ForecastingSuggestionsRequest) {
     const { data } = await this.client.post<ForecastingSuggestionsResponse>(`/ai/forecast/suggestions/${datasetId}`, request);
+    return data;
+  }
+
+  // ==================== DB Connections ====================
+
+  async listDbConnections() {
+    const { data } = await this.client.get<{ connections: any[] }>("/db-connections");
+    return data.connections;
+  }
+
+  async createDbConnection(connection: {
+    name: string;
+    description?: string;
+    host: string;
+    port: string;
+    database_name: string;
+    schema_name?: string;
+    username: string;
+    password: string;
+  }) {
+    const { data } = await this.client.post<any>("/db-connections", connection);
+    return data;
+  }
+
+  async introspectDbSchema(connectionId: string) {
+    const { data } = await this.client.get<any>(`/db-connections/${connectionId}/schema`);
+    return data;
+  }
+
+  async executeDbQuery(connectionId: string, query: string, limit = 10000) {
+    const { data } = await this.client.post<any>(`/db-connections/${connectionId}/query`, { query, limit });
     return data;
   }
 }

@@ -18,13 +18,13 @@ export function AuthLayout() {
             <BarChart3 className="size-6 text-accent" />
           </div>
           <div>
-            <p className="text-xl font-semibold text-white">InsightAI</p>
+            <p className="text-xl font-semibold text-foreground">Neuralytics</p>
             <p className="text-sm text-sidebar-foreground/60">Enterprise Analytics</p>
           </div>
         </div>
 
         <div className="max-w-md">
-          <h2 className="text-4xl font-semibold leading-tight tracking-tight text-white">
+          <h2 className="text-4xl font-semibold leading-tight tracking-tight text-foreground">
             Transform data into intelligent insights
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-sidebar-foreground/70">
@@ -48,7 +48,7 @@ export function AuthLayout() {
             <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
               <BarChart3 className="size-5 text-primary" />
             </div>
-            <span className="text-lg font-semibold text-foreground">InsightAI</span>
+            <span className="text-lg font-semibold text-foreground">Neuralytics</span>
           </div>
           <Outlet />
         </motion.div>

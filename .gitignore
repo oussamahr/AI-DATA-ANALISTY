@@ -68,3 +68,6 @@ trivy-results.sarif
 
 # Alembic
 backend/alembic/versions/
+
+# Hermes CLI managed skills (do not track in git)
+.claude/skills/

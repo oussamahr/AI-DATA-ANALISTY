@@ -35,7 +35,7 @@ def set_csrf_cookie_headers(response, csrf_token: str) -> None:
         key=settings.CSRF_COOKIE_NAME,
         value=csrf_token,
         httponly=False,
-        secure=True,
+        secure=not settings.is_development(),
         samesite="strict",
         path="/",
     )
