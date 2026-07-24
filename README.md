@@ -325,15 +325,47 @@ dashboard = await client.post(f"/ai/dashboard/{dataset_id}", json={
 
 ## 🔒 Security
 
+### Data Protection
+
+- **AES-256 Encryption at Rest** - Conversation content, SQL queries, and DB connection credentials encrypted using AES-GCM with per-field encryption
+- **TLS 1.3 for Data in Transit** - HSTS headers, HTTPS enforcement for S3 storage, SMTP over TLS, secure cookie transport
+- **Password Security** - bcrypt hashing with configurable complexity requirements (min length, upper/lower/digit/special)
+- **Database Credential Encryption** - DB connection passwords stored encrypted (`encrypted_username`, `encrypted_password` columns)
+
+### Authentication & Access Control
+
 - **Multi-tenant Isolation** - Row-level security via PostgreSQL RLS
-- **JWT Authentication** - Access (15min) + Refresh (7 days) tokens
-- **OIDC Support** - Enterprise SSO (Auth0, Keycloak, etc.)
-- **Role-Based Access** - Admin, Analyst, Viewer + custom roles
+- **JWT Authentication** - Access (15min) + Refresh (7 days) tokens with httpOnly, Secure, SameSite cookies
+- **OIDC/SSO Support** - Enterprise SSO via OIDC (Auth0, Keycloak, etc.) with JWKS verification, auto-provisioning, and role mapping
+- **Role-Based Access** - Admin, Analyst, Viewer + custom roles with tenant-scoped permissions
+- **Email Verification** - Required for account activation with 48-hour token expiry
+- **Password Reset** - Secure reset flow with 24-hour token expiry
+
+### Audit & Compliance
+
+- **Audit Logging** - All AI queries, data access, and admin actions logged with user ID, tenant ID, IP address, user agent, HTTP method, and path
+- **Immutable Audit Trails** - PostgreSQL-backed audit logs with indexed timestamps for efficient querying
+- **Data Export** - GDPR/CCPA data subject rights support via dataset export (CSV, XLSX, JSON)
+- **Row-Level Security** - PostgreSQL RLS policies enforce tenant isolation at the database level
+
+### Application Security
+
 - **Prompt Injection Protection** - 8 detection patterns + sanitization
-- **Safe SQL Execution** - Allow-list validation (SELECT only)
-- **Rate Limiting** - Per-user, per-tenant, per-endpoint
-- **Audit Logging** - All AI queries logged with user/tenant context
+- **Safe SQL Execution** - Allow-list validation (SELECT only, no DDL/DML)
+- **Rate Limiting** - Per-user (100/hr), per-tenant (1000/hr), per-auth-endpoint (5/min burst, 20/hr sustained)
 - **CSV Injection Prevention** - Formula prefix sanitization in exports
+- **Security Headers** - CSP, HSTS, X-Frame-Options (DENY), X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **CSRF Protection** - Token-based CSRF protection for state-changing requests
+- **Body Size Limits** - 10MB default, 100MB for upload endpoints
+- **Cache Control** - No-store headers on all API responses
+
+### Planned Security Features
+
+- **Multi-Factor Authentication (MFA)** - TOTP-based 2FA and WebAuthn hardware security key support
+- **SAML 2.0** - Enterprise SAML integration alongside OIDC
+- **SOC 2 Type II** - Independent security audit and annual recertification
+- **7-Year Audit Retention** - Configurable audit log retention with tamper detection
+- **Regional Data Residency** - Region-specific deployment options (EU, US, APAC)
 
 ## 📖 Documentation
 
