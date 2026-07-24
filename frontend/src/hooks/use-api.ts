@@ -75,6 +75,16 @@ export function useAdminUsers() {
   });
 }
 
+export function useVerifyUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => api.verifyUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
+}
+
 export function useDeleteDataset() {
   const queryClient = useQueryClient();
   return useMutation({

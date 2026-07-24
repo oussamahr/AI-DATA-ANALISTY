@@ -1,9 +1,10 @@
-import { Shield, Users } from "lucide-react";
+import { Shield, Users, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { DataTable, DataTableCell, DataTableRow } from "@/components/ui/table";
-import { useAdminStats, useAdminUsers } from "@/hooks/use-api";
+import { useAdminStats, useAdminUsers, useVerifyUser } from "@/hooks/use-api";
 import { formatDate, formatNumber, getErrorMessage } from "@/utils/cn";
 import { Navigate } from "react-router-dom";
 import { useAuthStore } from "@/store";
@@ -12,6 +13,7 @@ export function AdminPage() {
   const user = useAuthStore((s) => s.user);
   const { data: stats, isLoading: statsLoading } = useAdminStats();
   const { data: users, isLoading: usersLoading, error } = useAdminUsers();
+  const { mutate: verifyUser, isPending: isVerifying } = useVerifyUser();
 
   if (!user?.is_superuser) {
     return <Navigate to="/dashboard" replace />;
@@ -65,6 +67,7 @@ export function AdminPage() {
               { key: "email", header: "Email" },
               { key: "name", header: "Name" },
               { key: "status", header: "Status" },
+              { key: "verified", header: "Verified" },
               { key: "last_login", header: "Last Login" },
             ]}
           >
@@ -76,6 +79,21 @@ export function AdminPage() {
                   <Badge variant={u.is_active ? "success" : "danger"}>
                     {u.is_active ? "Active" : "Inactive"}
                   </Badge>
+                </DataTableCell>
+                <DataTableCell>
+                  {u.is_verified ? (
+                    <Badge variant="success">Verified</Badge>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => verifyUser(u.id)}
+                      disabled={isVerifying}
+                    >
+                      <Check className="size-4" />
+                      Verify
+                    </Button>
+                  )}
                 </DataTableCell>
                 <DataTableCell className="text-muted">{formatDate(u.last_login_at)}</DataTableCell>
               </DataTableRow>

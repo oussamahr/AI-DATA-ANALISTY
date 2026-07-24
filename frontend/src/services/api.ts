@@ -512,6 +512,11 @@ class ApiService {
     return data;
   }
 
+  async verifyUser(userId: string) {
+    const { data } = await this.client.post<UserResponse>(`/admin/users/${userId}/verify`);
+    return data;
+  }
+
   async listRoles() {
     const { data } = await this.client.get<RoleResponse[]>("/roles");
     return data;
