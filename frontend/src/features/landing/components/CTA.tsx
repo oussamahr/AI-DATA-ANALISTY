@@ -21,7 +21,7 @@ export default function CTA() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm font-medium text-[#afd2fa]-light mb-8">
             <Sparkles className="w-4 h-4" />
-            Start Your Free Trial
+            Get Started
           </div>
 
           <h2 className="text-4xl md:text-6xl font-bold mb-6">
@@ -30,7 +30,7 @@ export default function CTA() {
           </h2>
 
           <p className="text-lg text-[#c4d4f0] max-w-2xl mx-auto mb-10">
-            Join 500+ companies already using Neuralytics to transform their data into competitive advantage. No credit card required.
+            Join 500+ companies already using Neuralytics to transform their data into competitive advantage.
           </p>
 
           <div className="flex flex-wrap gap-4 justify-center">
@@ -43,18 +43,7 @@ export default function CTA() {
               Get Started
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 rounded-2xl glass text-[#fefaef] font-semibold text-lg hover:bg-[#fefaef]/10 transition-all"
-            >
-              Talk to Sales
-            </motion.button>
           </div>
-
-          <p className="text-sm text-[#c4d4f0] mt-6">
-            14-day free trial · No credit card required · Cancel anytime
-          </p>
         </motion.div>
       </div>
     </section>
